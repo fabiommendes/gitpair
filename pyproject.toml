@@ -1,0 +1,69 @@
+[project]
+name = "gitpair"
+version = "0.1.0"
+description = "Keep git repositories in sync between two machines over ssh."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Fábio Macêdo Mendes", email = "fabiomacedomendes@gmail.com" }
+]
+keywords = ["git", "ssh", "sync", "cli", "tui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+requires-python = ">=3.11.4"  # tarfile extraction filters
+dependencies = [
+    "rich>=15.0.0",
+    "textual>=8.2.8",
+    "tomlkit>=0.15.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/fabiommendes/gitpair"
+Issues = "https://github.com/fabiommendes/gitpair/issues"
+Changelog = "https://github.com/fabiommendes/gitpair/blob/main/CHANGELOG.md"
+
+[project.scripts]
+gitpair = "gitpair:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.9",
+    "taskipy>=1.14.1",
+]
+
+[tool.taskipy.tasks]
+test = "pytest"
+format = "ruff format . && ruff check --fix ."
+lint = "ruff format --check . && ruff check . && mypy"
+ci = "task lint && task test"
+release = "task ci && uv build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.11"
+warn_unused_ignores = true

@@ -1,0 +1,30 @@
+# gitpair configuration. Keep the same file on every host.
+
+[settings]
+depth = 3            # how deep to look for repositories under root
+push_config = true   # copy config changes to the other host
+autopush = false     # default for repositories without their own setting
+
+[hosts.desktop]
+ssh = "me@desktop.local"   # destination the other host uses to reach this one
+root = "~/git"
+
+[hosts.laptop]
+hostname = "laptop-2024"   # needed when the hostname differs from the table name
+ssh = "laptop"             # an alias from ~/.ssh/config works too
+root = "~/code"
+
+[repos]
+track = [
+    "dotfiles",
+    "work/api",
+    "work/frontend",
+]
+ignore = [
+    "archived/*",
+    "forks/*",
+]
+
+[repo."work/api"]            # declaring options also tracks the repository
+sync_ignored = [".env", "data/fixtures"]
+autopush = true

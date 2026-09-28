@@ -1,0 +1,31 @@
+name: Bug report
+description: gitpair did something wrong or failed
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Output of `gitpair plan`
+      description: Only the relevant rows. Remove names you do not want to publish.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: gitpair version
+      placeholder: output of `gitpair --version`
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: git version and OS on both hosts
+      placeholder: "local: git 2.47, Debian 13; remote: git 2.43, macOS 15"
+    validations:
+      required: true
