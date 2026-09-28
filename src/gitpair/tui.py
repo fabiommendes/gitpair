@@ -35,7 +35,7 @@ class ChoiceScreen(ModalScreen[Action | None]):
     def compose(self) -> ComposeResult:
         names = self.plan.local.name, self.plan.remote.name
         with Vertical():
-            yield Label(f"[b]{self.item.repo}[/b]  {escape(self.item.status)}")
+            yield Label(f"[b]{escape(self.item.repo)}[/b]  {escape(self.item.status)}")
             yield OptionList(
                 *(Option(action.describe(*names)) for action in self.item.options)
             )
@@ -72,8 +72,8 @@ class PlanApp(App[bool]):
             table.add_column(column, key=column)
         for item in self.items.values():
             table.add_row(
-                item.repo,
-                item.branch or "-",
+                escape(item.repo),
+                escape(item.branch or "-"),
                 escape(item.status),
                 self.label(item),
                 key=item.repo,

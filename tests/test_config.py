@@ -55,6 +55,16 @@ def test_more_hosts_require_remote(config):
     assert config.pair("r2d2", "bb8")[1].name == "bb8"
 
 
+def test_unknown_as_host_is_a_config_error(config):
+    with pytest.raises(cfg.ConfigError, match="unknown host 'skywalker'"):
+        config.pair("skywalker", "bb8")
+
+
+def test_as_and_remote_must_be_different(config):
+    with pytest.raises(cfg.ConfigError, match="r2d2"):
+        config.pair("r2d2", "r2d2")
+
+
 def test_update_repos_keeps_comments(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text('# mine\n[repos]\ntrack = ["a"]  # keep\n')

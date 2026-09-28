@@ -46,6 +46,20 @@ def test_sync_auto_applies_safe_actions_and_skips_questions(cli_world: World, ca
     assert "unknown" not in config.path.read_text()
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--remote", "there", "plan"],
+        ["plan", "--remote", "there"],
+        ["--as", "here", "sync", "--remote", "there", "--auto"],
+        ["sync", "--as", "here", "--remote", "there", "--auto"],
+    ],
+)
+def test_as_and_remote_are_accepted_before_or_after_the_subcommand(argv):
+    args = cli.parser().parse_args(argv)
+    assert args.remote == "there"
+
+
 def test_init_writes_template_once(tmp_path, capsys):
     path = tmp_path / "gitpair.toml"
     assert cli.main(["--config", str(path), "init"]) == 0
@@ -73,6 +87,17 @@ def test_errors_are_printed_without_markup(tmp_path, capsys):
     path.write_text('[hosts."[x]"]\n[hosts.y]\nssh = "y"\n')
     assert cli.main(["--config", str(path), "plan"]) == 1
     assert "host '[x]' has no 'ssh'" in capsys.readouterr().out
+
+
+def test_repo_name_with_markup_characters_is_shown_literally(cli_world: World, capsys):
+    cli_world.track.append("[bold]weird")
+    cli_world.repo("[bold]weird")
+    commit(cli_world.here / "[bold]weird", "new.txt")
+    config = cli_world.config()
+
+    assert cli.main(["--config", str(config.path), "plan"]) == 0
+    out = capsys.readouterr().out
+    assert "[bold]weird" in out
 
 
 def test_invalid_toml_is_reported_without_traceback(tmp_path, capsys):

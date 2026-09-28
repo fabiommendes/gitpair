@@ -22,7 +22,15 @@ All commands run from the local machine. The remote never needs to open a
 connection back, which matters when the local host is a laptop behind NAT.
 
 ssh connections are multiplexed (`ControlMaster=auto`, socket in
-`~/.ssh/gitpair-%C`), so a run opens one TCP connection to the remote.
+`~/.ssh/gitpair-%C`, `ConnectTimeout=10`). Commands run through `RemoteHost`
+(scan, `sh`, the extras that use `run_binary`) reuse the control socket
+directly. Git commands whose argument is a `user@host:path` URL on the peer
+(`fetch`, `push`, `clone`) open their own ssh process, so those additionally
+carry a matching `GIT_SSH_COMMAND` to reuse the same control socket. Together
+this means a run opens one TCP connection to the remote and authenticates
+once, for both the `RemoteHost` traffic and the peer git operations.
+Commands to `origin` are unrelated to this socket: they always use a fresh
+ssh connection, keeping the user's own `core.sshCommand` if set.
 
 ## Git commands per action
 

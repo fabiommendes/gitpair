@@ -15,6 +15,7 @@ SSH_OPTIONS = [
     "-o", "ControlMaster=auto",
     "-o", "ControlPath=~/.ssh/gitpair-%C",
     "-o", "ControlPersist=60",
+    "-o", "ConnectTimeout=10",
 ]  # fmt: skip
 
 
@@ -77,8 +78,8 @@ class Host:
             stderr = result.stderr.decode(errors="replace")
             raise CommandError(self.name, args, stderr)
 
-    def git(self, path: str, *args: str) -> str:
-        return self.run(["git", "-C", path, *args])
+    def git(self, path: str, *args: str, env: dict[str, str] | None = None) -> str:
+        return self.run(["git", "-C", path, *args], env=env)
 
     def shell(self, script: str, *, input: str | None = None) -> str:
         return self.run(["sh", "-c", script], input=input)
@@ -93,9 +94,20 @@ class Host:
         return self.python("manifest", repo_path, *entries)
 
     def python(self, *args: str) -> dict:
-        """Run ``scanner.py`` with ``args`` and parse its JSON output."""
+        """Run ``scanner.py`` with ``args`` and parse its JSON output.
+
+        Raises ``CommandError`` when the output is not valid JSON, e.g. a
+        noisy login shell (``/etc/profile``) printing to stdout on the
+        remote.
+        """
         source = resources.files("gitpair").joinpath("scanner.py").read_text()
-        return json.loads(self.run(["python3", "-", *args], input=source))
+        output = self.run(["python3", "-", *args], input=source)
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            raise CommandError(
+                self.name, ["python3", "-", *args], output[:200]
+            ) from None
 
     def url(self, path: str) -> str:
         """Git URL used by the local machine to reach ``path`` on this host."""
@@ -104,6 +116,13 @@ class Host:
     def wrap(self, args: list[str]) -> list[str]:
         return args
 
+    def peer_env(self) -> dict[str, str]:
+        """Extra environment for a git command whose argument reaches this host.
+
+        The base class runs locally, so nothing is needed.
+        """
+        return {}
+
 
 class RemoteHost(Host):
     def url(self, path: str) -> str:
@@ -111,3 +130,12 @@ class RemoteHost(Host):
 
     def wrap(self, args: list[str]) -> list[str]:
         return ["ssh", *SSH_OPTIONS, self.config.ssh, shlex.join(args)]
+
+    def peer_env(self) -> dict[str, str]:
+        """Reuse the multiplexed ssh connection for git's own ssh transport.
+
+        Without this, ``git fetch``/``push``/``clone`` against a
+        ``user@host:path`` URL opens and authenticates a brand new ssh
+        connection instead of reusing the one ``wrap`` keeps alive.
+        """
+        return {"GIT_SSH_COMMAND": shlex.join(["ssh", *SSH_OPTIONS])}

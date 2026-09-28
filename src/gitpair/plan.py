@@ -10,14 +10,26 @@ from enum import StrEnum
 from gitpair.config import Config, RepoOptions
 from gitpair.hosts import CommandError, Host
 
-# Accessing origin must never hang on a password prompt. LC_ALL keeps git
-# messages in English, since some errors are recognized by their text.
-ORIGIN_ENV = {
-    "GIT_TERMINAL_PROMPT": "0",
-    "GIT_SSH_COMMAND": "ssh -o BatchMode=yes",
-    "LC_ALL": "C",
-}
 ORIGIN_TIMEOUT = 120
+
+
+def origin_env(host: Host, path: str) -> dict[str, str]:
+    """Environment for git commands that reach ``origin``.
+
+    Accessing origin must never hang on a password prompt. LC_ALL keeps git
+    messages in English, since some errors are recognized by their text.
+    ``core.sshCommand`` (used to pick a key for GitHub, for example) is kept
+    and extended with ``BatchMode=yes`` rather than replaced.
+    """
+    try:
+        ssh_command = host.git(path, "config", "--get", "core.sshCommand")
+    except CommandError:
+        ssh_command = ""
+    return {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_SSH_COMMAND": f"{ssh_command or 'ssh'} -o BatchMode=yes",
+        "LC_ALL": "C",
+    }
 
 
 class Action(StrEnum):
@@ -208,6 +220,7 @@ def divergence(
         lstate.path,
         "fetch", "--quiet", "--no-tags", remote.url(rstate.path),
         f"+refs/heads/{rstate.branch}:{ref}",
+        env=remote.peer_env(),
     )  # fmt: skip
     counts = local.git(
         lstate.path, "rev-list", "--left-right", "--count", f"HEAD...{ref}"
@@ -341,21 +354,29 @@ def plan_origin(item: Item, local: Host) -> list[str]:
 
 
 def origin_state(local: Host, path: str, branch: str) -> str:
-    """Compare HEAD with origin: "up-to-date", "behind" or "diverged"."""
+    """Compare HEAD with origin: "up-to-date", "behind" or "diverged".
+
+    Fetches ``refs/heads/<branch>`` explicitly (so a tag with the same name
+    is never picked) and compares against ``FETCH_HEAD`` rather than
+    ``refs/remotes/origin/<branch>``, which is only updated when
+    ``remote.origin.fetch`` is configured.
+    """
     try:
         local.run(
-            ["git", "-C", path, "fetch", "--quiet", "--no-tags", "origin", branch],
-            env=ORIGIN_ENV,
+            [
+                "git", "-C", path, "fetch", "--quiet", "--no-tags", "origin",
+                f"refs/heads/{branch}",
+            ],
+            env=origin_env(local, path),
             timeout=ORIGIN_TIMEOUT,
-        )
+        )  # fmt: skip
     except CommandError as error:
         if "couldn't find remote ref" in error.stderr:
             return "behind"  # the branch does not exist on origin yet
         raise
-    ref = f"refs/remotes/origin/{branch}"
-    if is_ancestor(local, path, "HEAD", ref):
+    if is_ancestor(local, path, "HEAD", "FETCH_HEAD"):
         return "up-to-date"
-    if is_ancestor(local, path, ref, "HEAD"):
+    if is_ancestor(local, path, "FETCH_HEAD", "HEAD"):
         return "behind"
     return "diverged"
 

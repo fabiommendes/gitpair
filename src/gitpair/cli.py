@@ -6,6 +6,7 @@ import argparse
 import shlex
 import socket
 import sys
+from argparse import SUPPRESS
 from pathlib import Path
 
 from rich.console import Console
@@ -55,24 +56,41 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
+    # A shared parent so --as/--remote work both before and after the
+    # subcommand: `gitpair --remote c3po plan` and `gitpair plan --remote c3po`.
+    # SUPPRESS keeps a value set on one side from being wiped out by the
+    # other side's default when both parsers share this argument (argparse
+    # copies the subparser's whole namespace onto the parent's, defaults
+    # included). Read with getattr(args, "me"/"remote", None).
+    host_options = argparse.ArgumentParser(add_help=False)
+    host_options.add_argument(
+        "--as", dest="me", metavar="HOST", default=SUPPRESS, help="name of this host"
+    )
+    host_options.add_argument(
+        "--remote", metavar="HOST", default=SUPPRESS, help="host to sync with"
+    )
+
     main = argparse.ArgumentParser(
         prog="gitpair",
         description="Keep git repositories in sync between two machines over ssh.",
+        parents=[host_options],
     )
     main.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     main.add_argument(
         "--config", type=Path, default=cfg.config_path(), help="config file"
     )
-    main.add_argument("--as", dest="me", metavar="HOST", help="name of this host")
-    main.add_argument("--remote", metavar="HOST", help="host to sync with")
     commands = main.add_subparsers(dest="command")
-    sync = commands.add_parser("sync", help="review the plan and sync (default)")
+    sync = commands.add_parser(
+        "sync", parents=[host_options], help="review the plan and sync (default)"
+    )
     sync.add_argument(
         "--auto",
         action="store_true",
         help="apply only the safe fast-forwards and clones, never ask",
     )
-    commands.add_parser("plan", help="show what would be done and exit")
+    commands.add_parser(
+        "plan", parents=[host_options], help="show what would be done and exit"
+    )
     commands.add_parser("init", help="write a config template")
     return main
 
@@ -91,7 +109,7 @@ def sync(args: argparse.Namespace) -> int:
     if not args.config.exists():
         return suggest_init(args.config)
     config = cfg.load(args.config)
-    plan = make_plan(config, args.me, args.remote)
+    plan = make_plan(config, getattr(args, "me", None), getattr(args, "remote", None))
     if args.command == "plan":
         show_plan(plan)
         return 0
@@ -130,7 +148,7 @@ def make_plan(config: cfg.Config, me: str | None, peer: str | None) -> Plan:
         repos = list(repos)
         with console.status("comparing...") as status:
             for index, repo in enumerate(repos, 1):
-                status.update(f"comparing [{index}/{len(repos)}] {repo}")
+                status.update(f"comparing [{index}/{len(repos)}] {escape(repo)}")
                 yield repo
 
     return planning.build(config, local, remote, local_scan, remote_scan, progress)
@@ -147,7 +165,9 @@ def show_plan(plan: Plan) -> None:
             if item.choice
             else "[yellow]ask: " + " / ".join(item.options) + "[/]"
         )
-        table.add_row(item.repo, item.branch or "-", escape(item.status), action)
+        table.add_row(
+            escape(item.repo), escape(item.branch or "-"), escape(item.status), action
+        )
     console.print(table)
     console.print(f"{len(plan.items) - len(plan.pending)} repositories in sync")
 
@@ -165,10 +185,10 @@ def announce(plan: Plan):
 
 def report(outcome: session.Outcome) -> int:
     for item, error in outcome.failed:
-        console.print(f"[red]failed[/] {item.repo}: {escape(str(error))}")
+        console.print(f"[red]failed[/] {escape(item.repo)}: {escape(str(error))}")
     console.print(f"[green]{len(outcome.done)} done[/], {len(outcome.failed)} failed")
     if outcome.config_note:
-        console.print(outcome.config_note)
+        console.print(escape(outcome.config_note))
     return 1 if outcome.failed else 0
 
 

@@ -79,6 +79,13 @@ class Config:
 
     def pair(self, me: str | None, peer: str | None) -> tuple[HostConfig, HostConfig]:
         """Decide which host is local and which one is remote."""
+        if me:
+            if me not in self.hosts:
+                raise ConfigError(f"unknown host {me!r}")
+            if me == peer:
+                raise ConfigError(
+                    f"--as and --remote must be different hosts, got {me!r}"
+                )
         local = self.hosts[me] if me else self.local_host()
         others = [h for h in self.hosts.values() if h.name != local.name]
         if peer:

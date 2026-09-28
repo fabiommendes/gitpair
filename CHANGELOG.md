@@ -23,3 +23,14 @@ All notable changes to this project are documented here. The format follows
     file wins, deletions are not propagated.
   - `autopush`: fast-forward `origin` after syncing, never forcing. Global
     default in `settings.autopush`.
+
+### Fixed
+
+- `--as` and `--remote` are now accepted both before and after the
+  subcommand (`gitpair --remote c3po plan` and `gitpair plan --remote c3po`).
+- ssh connections to the peer now time out after 10s instead of hanging on a
+  powered-off machine.
+- Autopush now keeps the user's own `core.sshCommand` (used to pick an ssh
+  key, for example) instead of overriding it.
+- Fixed autopush wrongly reporting `origin` as diverged when `origin` has no
+  `remote.<name>.fetch` refspec configured.

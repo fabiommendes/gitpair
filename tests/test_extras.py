@@ -96,6 +96,29 @@ def test_skipped_repo_copies_nothing(files_world: World):
     assert not (files_world.there / "app/storage/a.txt").exists()
 
 
+def test_missing_file_between_plan_and_apply_does_not_abort_the_run(world: World):
+    world.extra_config = '\n[repo.app]\nsync_ignored = ["storage"]\n'
+    world.repo("app", gitignore=GITIGNORE)
+    world.track.append("other")
+    world.repo("other")
+    other_head = commit(world.there / "other", "new.txt")
+    write(world.here / "app/storage/a.txt", "a", 1000)
+
+    plan = world.plan()
+    app_item = next(i for i in plan.pending if i.repo == "app")
+    other_item = next(i for i in plan.pending if i.repo == "other")
+    assert app_item.choice is Action.KEEP
+    assert [e.step for e in app_item.extras] == [Step.FILES_THERE]
+    other_item.choice = Action.PULL
+
+    (world.here / "app/storage/a.txt").unlink()  # removed after planning
+
+    outcome = run(world, plan)
+    assert [i.repo for i, _ in outcome.failed] == ["app"]
+    assert other_item in outcome.done
+    assert git(world.here / "other", "rev-parse", "HEAD") == other_head
+
+
 def test_entries_not_ignored_by_git_are_reported_and_skipped(world: World):
     world.extra_config = '\n[repo.app]\nsync_ignored = ["src"]\n'
     world.repo("app", gitignore=GITIGNORE)
@@ -198,6 +221,33 @@ def test_diverged_origin_is_reported_when_in_sync(world: World, origin: Path):
     item = only(world.plan())
     assert item.choice is Action.SKIP
     assert "origin has diverged" in item.status
+
+
+def test_autopush_works_without_a_fetch_refspec(world: World):
+    # Without remote.origin.fetch, `git fetch origin <branch>` only updates
+    # FETCH_HEAD: refs/remotes/origin/<branch> is never created.
+    world.extra_config = "\n[repo.app]\nautopush = true\n"
+    world.repo("app")
+    bare = world.tmp / "origin.git"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--bare", str(world.here / "app"), str(bare)],
+        check=True,
+    )
+    git(world.here / "app", "remote", "add", "origin", str(bare))
+    git(world.here / "app", "config", "--unset", "remote.origin.fetch")
+    git(world.there / "app", "remote", "set-url", "origin", str(bare))
+    git(world.there / "app", "config", "--unset", "remote.origin.fetch")
+
+    head = commit(world.here / "app", "a.txt")
+    git(world.there / "app", "pull", "--quiet", str(world.here / "app"), "main")
+
+    plan = world.plan()
+    item = only(plan)
+    assert item.choice is Action.KEEP
+    assert [e.step for e in item.extras] == [Step.ORIGIN]
+
+    assert not run(world, plan).failed
+    assert git(bare, "rev-parse", "main") == head
 
 
 def test_autopush_off_by_default(world: World):

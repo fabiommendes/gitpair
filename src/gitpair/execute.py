@@ -9,13 +9,13 @@ import tempfile
 
 from gitpair.hosts import CommandError, Host
 from gitpair.plan import (
-    ORIGIN_ENV,
     ORIGIN_TIMEOUT,
     Action,
     Item,
     Plan,
     RepoState,
     Step,
+    origin_env,
     origin_state,
     peer_ref,
 )
@@ -25,35 +25,44 @@ BACKUP = "refs/gitpair/backup/{branch}"
 
 
 def apply(plan: Plan, item: Item) -> None:
-    """Run the chosen action. Raises CommandError when a step fails."""
+    """Run the chosen action. Raises CommandError when a step fails.
+
+    A file removed on either side between planning and applying (``copy_there``
+    and ``copy_here`` read the filesystem again) raises ``OSError``; it is
+    converted to a ``CommandError`` so one missing file does not abort the
+    whole run.
+    """
     local, remote = plan.local, plan.remote
-    match item.choice:
-        case Action.PULL:
-            pull(local, remote, need(item.local), need(item.remote))
-        case Action.PUSH:
-            push(local, remote, need(item.local), need(item.remote))
-        case Action.MERGE:
-            merge(local, remote, need(item.local), need(item.remote))
-        case Action.TAKE_REMOTE:
-            take_remote(local, remote, need(item.local))
-        case Action.TAKE_LOCAL:
-            take_local(local, remote, need(item.local), need(item.remote))
-        case Action.CLONE_HERE:
-            clone_here(local, remote, item.repo, need(item.remote))
-        case Action.CLONE_THERE:
-            clone_there(local, remote, item.repo, need(item.local))
-    for extra in item.extras:
-        match extra.step:
-            case Step.FILES_THERE:
-                copy_there(
-                    local, remote, need(item.local), need(item.remote), extra.files
-                )
-            case Step.FILES_HERE:
-                copy_here(
-                    local, remote, need(item.local), need(item.remote), extra.files
-                )
-            case Step.ORIGIN:
-                push_origin(local, need(item.local))
+    try:
+        match item.choice:
+            case Action.PULL:
+                pull(local, remote, need(item.local), need(item.remote))
+            case Action.PUSH:
+                push(local, remote, need(item.local), need(item.remote))
+            case Action.MERGE:
+                merge(local, remote, need(item.local), need(item.remote))
+            case Action.TAKE_REMOTE:
+                take_remote(local, remote, need(item.local))
+            case Action.TAKE_LOCAL:
+                take_local(local, remote, need(item.local), need(item.remote))
+            case Action.CLONE_HERE:
+                clone_here(local, remote, item.repo, need(item.remote))
+            case Action.CLONE_THERE:
+                clone_there(local, remote, item.repo, need(item.local))
+        for extra in item.extras:
+            match extra.step:
+                case Step.FILES_THERE:
+                    copy_there(
+                        local, remote, need(item.local), need(item.remote), extra.files
+                    )
+                case Step.FILES_HERE:
+                    copy_here(
+                        local, remote, need(item.local), need(item.remote), extra.files
+                    )
+                case Step.ORIGIN:
+                    push_origin(local, need(item.local))
+    except OSError as error:
+        raise CommandError(local.name, ["apply", item.repo], str(error)) from error
 
 
 def copy_there(
@@ -103,7 +112,7 @@ def push_origin(local: Host, lstate: RepoState) -> None:
                 "origin",
                 f"HEAD:refs/heads/{branch}",
             ],
-            env=ORIGIN_ENV,
+            env=origin_env(local, lstate.path),
             timeout=ORIGIN_TIMEOUT,
         )
 
@@ -148,7 +157,10 @@ def take_local(local: Host, remote: Host, lstate: RepoState, rstate: RepoState) 
 
 def clone_here(local: Host, remote: Host, repo: str, rstate: RepoState) -> None:
     path = target_path(local, repo)
-    local.run(["git", "clone", "--quiet", remote.url(rstate.path), path])
+    local.run(
+        ["git", "clone", "--quiet", remote.url(rstate.path), path],
+        env=remote.peer_env(),
+    )
     if rstate.origin:
         local.git(path, "remote", "set-url", "origin", rstate.origin)
     else:
@@ -163,6 +175,7 @@ def clone_there(local: Host, remote: Host, repo: str, lstate: RepoState) -> None
         lstate.path,
         "push", "--quiet", remote.url(path),
         "refs/heads/*:refs/heads/*", "refs/tags/*:refs/tags/*",
+        env=remote.peer_env(),
     )  # fmt: skip
     remote.git(path, "symbolic-ref", "HEAD", f"refs/heads/{lstate.branch}")
     remote.git(path, "reset", "--hard", "--quiet")
@@ -180,6 +193,7 @@ def send(local: Host, remote: Host, lstate: RepoState, rpath: str) -> str:
         lstate.path,
         "push", "--quiet", "--force", remote.url(rpath),
         f"refs/heads/{lstate.branch}:{incoming}",
+        env=remote.peer_env(),
     )  # fmt: skip
     return incoming
 
