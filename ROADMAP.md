@@ -16,7 +16,7 @@ delete them here. Unscheduled ideas live in [BACKLOG.md](BACKLOG.md).
 - [x] Terminal UI for questions; `plan` and `sync --auto` for scripts.
 - [x] Shared config with track/ignore decisions written back.
 - [x] Test against two real machines over ssh (r2d2 and c3po): scan, fetch and clone-there verified.
-- [ ] Publish to PyPI through the release workflow.
+- [x] Publish to PyPI through the release workflow (0.1.0, 2026-09-28).
 
 ## 0.2.0: less friction
 
