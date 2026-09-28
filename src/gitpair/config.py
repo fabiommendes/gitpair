@@ -36,15 +36,32 @@ from pathlib import Path, PurePosixPath
 import tomlkit
 import tomlkit.exceptions
 
+__all__ = [
+    "load",
+    "update_repos",
+    #: Dataclasses
+    "Config",
+    "HostConfig",
+    "RepoOptions",
+    #: Exceptions
+    "ConfigError",
+    #: Paths
+    "remote_path",
+    "config_path",
+    "DEFAULT_PATH",
+]
+
 DEFAULT_PATH = Path("~/.config/gitpair/config.toml").expanduser()
 
 
 class ConfigError(Exception):
-    pass
+    """The config file is missing, invalid, or does not match the CLI flags."""
 
 
 @dataclass(frozen=True)
 class HostConfig:
+    """One ``[hosts.NAME]`` table."""
+
     name: str
     hostname: str
     ssh: str
@@ -53,12 +70,16 @@ class HostConfig:
 
 @dataclass(frozen=True)
 class RepoOptions:
+    """Per-repository options, from ``[repo.NAME]`` or the ``autopush`` default."""
+
     sync_ignored: tuple[str, ...] = ()
     autopush: bool = False
 
 
 @dataclass
 class Config:
+    """The parsed config file, shared by every host."""
+
     path: Path
     hosts: dict[str, HostConfig]
     track: list[str] = field(default_factory=list)
@@ -69,16 +90,31 @@ class Config:
     repo_options: dict[str, RepoOptions] = field(default_factory=dict)
 
     def is_tracked(self, repo: str) -> bool:
+        """True when ``repo`` is in ``repos.track`` or has a ``[repo.NAME]`` table."""
         return repo in self.track or repo in self.repo_options
 
     def options(self, repo: str) -> RepoOptions:
+        """``repo``'s options, or the defaults when it has no ``[repo.NAME]`` table."""
         return self.repo_options.get(repo, RepoOptions(autopush=self.autopush))
 
     def is_ignored(self, repo: str) -> bool:
+        """True when ``repo`` matches one of the ``repos.ignore`` patterns."""
         return any(fnmatch(repo, pattern) for pattern in self.ignore)
 
     def pair(self, me: str | None, peer: str | None) -> tuple[HostConfig, HostConfig]:
-        """Decide which host is local and which one is remote."""
+        """Decide which host is local and which one is remote.
+
+        Args:
+            me: host name from ``--as``, or ``None`` to detect it from the
+                machine's hostname.
+            peer: host name from ``--remote``, or ``None`` when there is
+                exactly one other host to choose from.
+
+        Raises:
+            ConfigError: ``me`` or ``peer`` name an unknown host, ``me``
+                and ``peer`` are the same host, the local host cannot be
+                detected, or ``peer`` is ambiguous.
+        """
         if me:
             if me not in self.hosts:
                 raise ConfigError(f"unknown host {me!r}")
@@ -98,6 +134,12 @@ class Config:
         return local, others[0]
 
     def local_host(self) -> HostConfig:
+        """The host whose ``hostname`` matches this machine.
+
+        Raises:
+            ConfigError: no host in the config matches this machine's
+                hostname.
+        """
         current = socket.gethostname().split(".")[0]
         for host in self.hosts.values():
             if host.hostname.split(".")[0] == current:
@@ -109,6 +151,13 @@ class Config:
 
 
 def load(path: Path = DEFAULT_PATH) -> Config:
+    """Parse the TOML config file at ``path``.
+
+    Raises:
+        ConfigError: the file does not exist, is not valid TOML, declares
+            fewer than two hosts, a host has no ``ssh`` destination, or a
+            ``sync_ignored`` entry escapes the repository.
+    """
     if not path.exists():
         raise ConfigError(f"config file not found: {path}")
     try:
@@ -139,31 +188,23 @@ def load(path: Path = DEFAULT_PATH) -> Config:
         push_config=settings.get("push_config", True),
         autopush=autopush,
         repo_options={
-            repo: repo_options(repo, data, autopush)
+            repo: _repo_options(repo, data, autopush)
             for repo, data in doc.get("repo", {}).items()
         },
-    )
-
-
-def repo_options(repo: str, data: dict, autopush: bool) -> RepoOptions:
-    entries = data.get("sync_ignored", [])
-    for entry in entries:
-        parts = PurePosixPath(entry).parts
-        if not entry or entry.startswith("/") or ".." in parts or ".git" in parts:
-            raise ConfigError(
-                f"repo {repo!r}: sync_ignored entries must be relative paths "
-                f"inside the repository, got {entry!r}"
-            )
-    return RepoOptions(
-        sync_ignored=tuple(entry.rstrip("/") for entry in entries),
-        autopush=data.get("autopush", autopush),
     )
 
 
 def update_repos(path: Path, track: list[str], ignore: list[str]) -> str:
     """Append entries to the repos lists, keeping comments and layout.
 
-    Returns the new file content."""
+    Args:
+        track: repository names to add to ``repos.track``, if not already
+            listed.
+        ignore: patterns to add to ``repos.ignore``, if not already listed.
+
+    Returns:
+        The file's new content.
+    """
     doc = tomlkit.parse(path.read_text())
     repos = doc.setdefault("repos", tomlkit.table())
     for key, new in (("track", track), ("ignore", ignore)):
@@ -177,8 +218,14 @@ def update_repos(path: Path, track: list[str], ignore: list[str]) -> str:
     return text
 
 
-def remote_path(path: Path) -> str:
-    """Shell expression for the same config file on the other host."""
+def remote_path(path: Path, /) -> str:
+    """Shell expression for the same config file on the other host.
+
+    >>> remote_path(Path.home() / ".config/gitpair/config.toml")
+    '"$HOME"/.config/gitpair/config.toml'
+    >>> remote_path(Path("/etc/gitpair.toml"))
+    '/etc/gitpair.toml'
+    """
     try:
         return '"$HOME"/' + shlex.quote(str(path.relative_to(Path.home())))
     except ValueError:
@@ -186,4 +233,20 @@ def remote_path(path: Path) -> str:
 
 
 def config_path() -> Path:
+    """The config path: ``$GITPAIR_CONFIG``, or :data:`DEFAULT_PATH`."""
     return Path(os.environ.get("GITPAIR_CONFIG") or DEFAULT_PATH).expanduser()
+
+
+def _repo_options(repo: str, data: dict, autopush: bool) -> RepoOptions:
+    entries = data.get("sync_ignored", [])
+    for entry in entries:
+        parts = PurePosixPath(entry).parts
+        if not entry or entry.startswith("/") or ".." in parts or ".git" in parts:
+            raise ConfigError(
+                f"repo {repo!r}: sync_ignored entries must be relative paths "
+                f"inside the repository, got {entry!r}"
+            )
+    return RepoOptions(
+        sync_ignored=tuple(entry.rstrip("/") for entry in entries),
+        autopush=data.get("autopush", autopush),
+    )

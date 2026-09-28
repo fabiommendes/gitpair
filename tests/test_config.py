@@ -88,3 +88,17 @@ def test_example_config_is_valid():
     config = cfg.load(example)
     assert set(config.hosts) == {"desktop", "laptop"}
     assert config.is_ignored("archived/old")
+
+
+def test_remote_path_under_home_uses_home_variable():
+    path = Path.home() / ".config/gitpair/config.toml"
+    assert cfg.remote_path(path) == '"$HOME"/.config/gitpair/config.toml'
+
+
+def test_remote_path_outside_home_is_absolute():
+    assert cfg.remote_path(Path("/etc/gitpair.toml")) == "/etc/gitpair.toml"
+
+
+def test_remote_path_quotes_special_characters():
+    path = Path.home() / "we ird's"
+    assert cfg.remote_path(path) == "\"$HOME\"/'we ird'\"'\"'s'"

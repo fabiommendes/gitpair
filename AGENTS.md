@@ -41,7 +41,10 @@ does, not how great it is.
 | `src/gitpair/config.py`      | Load and update the shared TOML config; detect local and remote host. |
 | `src/gitpair/scanner.py`     | Finds repositories and reports their state. Runs on both hosts.       |
 | `src/gitpair/hosts.py`       | `Host` runs commands locally; `RemoteHost` wraps them in ssh.         |
-| `src/gitpair/plan.py`        | Compares hosts, builds `Item`s with options and default `Action`.    |
+| `src/gitpair/plan.py`        | Public plan API: `build`, `describe`, the enums and dataclasses.      |
+| `src/gitpair/_model.py`      | Private. `Action`, `Item`, `Plan`, `RepoState`, `Extra`, `Step`.       |
+| `src/gitpair/_facts.py`      | Private. Gathers plan facts: all the host I/O, no decisions.          |
+| `src/gitpair/_decide.py`     | Private. Turns facts into `Item`s: pure, no host access.               |
 | `src/gitpair/execute.py`     | Git commands for each `Action`.                                       |
 | `src/gitpair/session.py`     | One run: connect, apply the plan, save track/ignore decisions.        |
 | `src/gitpair/tui.py`         | Textual app to review the plan and answer questions.                  |

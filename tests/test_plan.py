@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from conftest import git
 
+from gitpair._decide import compare_files
 from gitpair.config import HostConfig
 from gitpair.hosts import Host
-from gitpair.plan import compare_files, origin_env
+from gitpair.plan import Action, Extra, Item, Step, describe, origin_env
 
 
 def test_compare_files_every_name_lands_in_one_bucket_or_matches():
@@ -53,3 +54,40 @@ def test_origin_env_defaults_to_plain_ssh(tmp_path):
     host = Host(HostConfig(name="x", hostname="x", ssh="x", root="~"))
     env = origin_env(host, str(repo))
     assert env["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes"
+
+
+def make_item(choice: Action, extras: list[Extra] | None = None) -> Item:
+    return Item(
+        "app",
+        None,
+        None,
+        status="",
+        options=[choice],
+        choice=choice,
+        extras=extras or [],
+    )
+
+
+def test_describe_with_no_choice_is_a_question_mark():
+    item = Item("app", None, None, status="", options=[Action.SKIP])
+    assert describe(item, "here", "there") == "?"
+
+
+def test_describe_names_the_two_hosts():
+    item = make_item(Action.PULL)
+    assert describe(item, "here", "there") == "fast-forward here from there"
+
+
+def test_describe_appends_extra_step_descriptions():
+    extras = [Extra(Step.FILES_THERE, "copy 1 file to there")]
+    item = make_item(Action.KEEP, extras)
+    assert (
+        describe(item, "here", "there")
+        == "commits already in sync + copy 1 file to there"
+    )
+
+
+def test_describe_skip_ignores_extras():
+    extras = [Extra(Step.ORIGIN, "push to origin")]
+    item = make_item(Action.SKIP, extras)
+    assert describe(item, "here", "there") == "skip for now"

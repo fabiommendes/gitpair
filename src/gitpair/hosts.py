@@ -11,6 +11,13 @@ from typing import IO
 
 from gitpair.config import HostConfig
 
+__all__ = [
+    "Host",
+    "RemoteHost",
+    "CommandError",
+    "SSH_OPTIONS",
+]
+
 SSH_OPTIONS = [
     "-o", "ControlMaster=auto",
     "-o", "ControlPath=~/.ssh/gitpair-%C",
@@ -20,6 +27,8 @@ SSH_OPTIONS = [
 
 
 class CommandError(Exception):
+    """A command run on ``host`` exited with a non-zero status, or timed out."""
+
     def __init__(self, host: str, args: list[str], stderr: str):
         self.host = host
         self.args_ = args
@@ -43,6 +52,17 @@ class Host:
         env: dict[str, str] | None = None,
         timeout: float | None = None,
     ) -> str:
+        """Run ``args`` and return its stripped stdout.
+
+        Args:
+            env: extra variables merged over a copy of this process's
+                environment; the child never sees a bare, unset environment.
+            timeout: seconds to wait before killing the command.
+
+        Raises:
+            CommandError: the command exited with a non-zero status or
+                exceeded ``timeout``.
+        """
         try:
             result = subprocess.run(
                 self.wrap(args),
@@ -66,7 +86,11 @@ class Host:
         input: bytes | None = None,
         stdout: IO[bytes] | None = None,
     ) -> None:
-        """Run a command that reads or writes binary streams, like tar."""
+        """Run a command that reads or writes binary streams, like tar.
+
+        Raises:
+            CommandError: the command exited with a non-zero status.
+        """
         result = subprocess.run(
             self.wrap(args),
             stdin=stdin,
@@ -79,26 +103,49 @@ class Host:
             raise CommandError(self.name, args, stderr)
 
     def git(self, path: str, *args: str, env: dict[str, str] | None = None) -> str:
+        """Run ``git -C path args...``.
+
+        Raises:
+            CommandError: git exited with a non-zero status.
+        """
         return self.run(["git", "-C", path, *args], env=env)
 
     def shell(self, script: str, *, input: str | None = None) -> str:
+        """Run ``script`` with ``sh -c``.
+
+        Raises:
+            CommandError: the script exited with a non-zero status.
+        """
         return self.run(["sh", "-c", script], input=input)
 
     def scan(self, depth: int) -> dict:
+        """Find repositories under ``config.root`` and report their state.
+
+        Updates ``self.root`` to the scan's expanded, absolute root.
+
+        Raises:
+            CommandError: ``scanner.py`` could not run or its output was
+                not valid JSON.
+        """
         data = self.python("scan", self.config.root, str(depth))
         self.root = data["root"]
         return data
 
     def manifest(self, repo_path: str, entries: list[str]) -> dict[str, list[int]]:
-        """Size and mtime of every regular file under ``entries``."""
+        """Size and mtime of every regular file under ``entries``.
+
+        Raises:
+            CommandError: ``scanner.py`` could not run or its output was
+                not valid JSON.
+        """
         return self.python("manifest", repo_path, *entries)
 
     def python(self, *args: str) -> dict:
         """Run ``scanner.py`` with ``args`` and parse its JSON output.
 
-        Raises ``CommandError`` when the output is not valid JSON, e.g. a
-        noisy login shell (``/etc/profile``) printing to stdout on the
-        remote.
+        Raises:
+            CommandError: the output is not valid JSON, e.g. a noisy login
+                shell (``/etc/profile``) printing to stdout on the remote.
         """
         source = resources.files("gitpair").joinpath("scanner.py").read_text()
         output = self.run(["python3", "-", *args], input=source)
@@ -114,6 +161,7 @@ class Host:
         return path
 
     def wrap(self, args: list[str]) -> list[str]:
+        """Command line that runs ``args`` on this host. Identity for the local host."""
         return args
 
     def peer_env(self) -> dict[str, str]:
@@ -125,6 +173,8 @@ class Host:
 
 
 class RemoteHost(Host):
+    """A machine reached over ssh, using the multiplexed connection ``wrap`` opens."""
+
     def url(self, path: str) -> str:
         return f"{self.config.ssh}:{path}"
 
