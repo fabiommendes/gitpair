@@ -46,3 +46,11 @@ priority. Move items to [ROADMAP.md](ROADMAP.md) when they get a release.
 * [ ] The "copy N files" text in an extra step is computed before the files
   policy is chosen, so with `skip conflicting files` it can count files that
   are not copied. Compute the description from `resolved_files` instead.
+
+## From the 2026-09-28 review
+
+* [ ] Optional integration test against `ssh localhost` behind an environment
+  variable, so `run_binary`, `host:/path` URLs and the config copy run through
+  the real ssh path in CI-like conditions (review item T4).
+* [ ] Decide whether the project needs a `docs` task (doc-zero) or the README
+  plus `docs/` are enough (review item P5).
