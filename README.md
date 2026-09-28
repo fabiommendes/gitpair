@@ -79,6 +79,15 @@ In the terminal UI, press `enter` on a row to answer its question, `a` to accept
 the first option, `s` to skip, `x` to run the plan and `q` to quit without
 changing anything. Rows you leave unanswered are skipped.
 
+`gitpair plan` and the terminal UI show each repository's status and action as
+icons, to keep the table narrow: `↑`/`↓` ahead or behind, `⇅` diverged, `✎`
+dirty, `✚` new, `→`/`←` only on one host, `✗` git error, `∅` empty repository
+or no branch to sync, `⚑` conflicting ignored files; `▶` for an action that
+will run as shown, `?` for one that still needs a decision, `–` for skip. A
+legend for the icons used in the current table is printed under it. Use
+`gitpair plan --plain` for ASCII letters instead, in scripts or terminals
+without unicode support.
+
 For cron jobs or shell hooks, `gitpair sync --auto` applies only the automatic
 actions and never asks.
 
@@ -130,7 +139,7 @@ action.
 ## Commands
 
 ```text
-gitpair [--config PATH] [--as HOST] [--remote HOST] [sync [--auto] | plan | init]
+gitpair [--config PATH] [--as HOST] [--remote HOST] [sync [--auto] | plan [--plain] | init]
 ```
 
 - `--config`: config file. Defaults to `$GITPAIR_CONFIG` or
@@ -138,6 +147,7 @@ gitpair [--config PATH] [--as HOST] [--remote HOST] [sync [--auto] | plan | init
 - `--as`: name of the current host, when the hostname does not match the config.
 - `--remote`: host to sync with. Only required when the config lists more than
   two hosts.
+- `plan --plain`: ASCII letters instead of unicode icons in the table.
 
 ## Contributing
 

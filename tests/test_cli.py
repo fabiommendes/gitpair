@@ -38,8 +38,26 @@ def test_plan_prints_table_and_changes_nothing(cli_world: World, capsys):
     assert cli.main(["--config", str(config.path), "plan"]) == 0
     out = capsys.readouterr().out
     assert "ahead by 1" in out
-    assert "fast-forward there from here" in out
+    assert "▶ push" in out  # compact action: ▶ push
+    assert "↑" in out  # ahead icon in the status column
+    assert "↑ ahead" in out and "▶ automatic" in out  # legend
     assert git(cli_world.there / "app", "rev-parse", "HEAD") != before
+
+
+def test_plan_plain_uses_no_unicode_icons(cli_world: World, capsys):
+    cli_world.track.append("app")
+    cli_world.repo("app")
+    commit(cli_world.here / "app", "new.txt")
+    config = cli_world.config()
+
+    assert cli.main(["--config", str(config.path), "plan", "--plain"]) == 0
+    out = capsys.readouterr().out
+    assert "ahead by 1" in out
+    assert "> push" in out
+    # none of the unicode status/action icons leaked into the plain output
+    # (table borders are drawn with unicode box characters regardless)
+    for icon in "✓↑↓⇅✎✚→←✗∅⚑▶":
+        assert icon not in out
 
 
 def test_sync_auto_applies_safe_actions_and_skips_questions(cli_world: World, capsys):

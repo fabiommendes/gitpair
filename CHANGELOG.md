@@ -40,6 +40,14 @@ All notable changes to this project are documented here. The format follows
 - Clarified that `gitpair plan` fetches into `refs/gitpair/*` and updates
   `FETCH_HEAD`; it does not touch branches, work trees, uncommitted files or
   `origin` (the README used to say it changes nothing at all).
+- `gitpair plan` and the terminal UI's plan table are more compact: a new
+  leading column shows the repository's status as icons (in sync, ahead,
+  behind, diverged, dirty, new, only on one host, git error, empty/no
+  branch, conflicting ignored files), and the "Action" column shows an icon
+  (automatic, needs a decision, or skip) followed by a short label instead
+  of the full sentence. A legend for the icons used in the table is printed
+  under it. `gitpair plan --plain` uses ASCII letters instead, for scripts
+  and terminals without unicode support.
 
 ### Fixed
 

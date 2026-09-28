@@ -10,7 +10,7 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Label, OptionList
 from textual.widgets.option_list import Option
 
-from gitpair.plan import Action, FilesPolicy, Item, Plan, count, describe
+from gitpair.plan import Action, FilesPolicy, Item, Plan, count, icons
 
 COLUMNS = ("Repository", "Branch", "Status", "Action")
 
@@ -94,22 +94,29 @@ class PlanApp(App[bool]):
     def on_mount(self) -> None:
         self.sub_title = f"{self.plan.local.name} (here) <-> {self.plan.remote.name}"
         table = self.query_one(DataTable)
+        table.add_column("", key="icon")
         for column in COLUMNS:
             table.add_column(column, key=column)
         for item in self.items.values():
+            status_icon, status, _, _ = self._icons(item)
             table.add_row(
+                status_icon,
                 escape(item.repo),
                 escape(item.branch or "-"),
-                escape(item.status),
+                escape(status),
                 self.label(item),
                 key=item.repo,
             )
         self.refresh_title()
 
+    def _icons(self, item: Item) -> tuple[str, str, str, str]:
+        return icons(item, self.plan.local.name, self.plan.remote.name)
+
     def label(self, item: Item) -> str:
+        _, _, action_icon, action_text = self._icons(item)
+        text = escape(f"{action_icon} {action_text}")
         if item.needs_decision:
-            return "[b yellow]? decide[/]"
-        text = escape(describe(item, self.plan.local.name, self.plan.remote.name))
+            return f"[b yellow]{text}[/]"
         return f"[dim]{text}[/]" if item.choice is Action.SKIP else text
 
     def refresh_title(self) -> None:

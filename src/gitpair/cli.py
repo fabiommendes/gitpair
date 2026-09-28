@@ -17,7 +17,7 @@ from gitpair import __version__, session
 from gitpair import config as cfg
 from gitpair import plan as planning
 from gitpair.hosts import CommandError
-from gitpair.plan import Action, FilesPolicy, Item, Plan
+from gitpair.plan import Action, FilesPolicy, Plan
 
 console = Console()
 
@@ -88,8 +88,13 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="apply only the safe fast-forwards and clones, never ask",
     )
-    commands.add_parser(
+    plan = commands.add_parser(
         "plan", parents=[host_options], help="show what would be done and exit"
+    )
+    plan.add_argument(
+        "--plain",
+        action="store_true",
+        help="ascii letters instead of unicode icons",
     )
     commands.add_parser("init", help="write a config template")
     return main
@@ -111,7 +116,7 @@ def sync(args: argparse.Namespace) -> int:
     config = cfg.load(args.config)
     plan = make_plan(config, getattr(args, "me", None), getattr(args, "remote", None))
     if args.command == "plan":
-        show_plan(plan)
+        show_plan(plan, plain=getattr(args, "plain", False))
         return 0
     if not plan.pending:
         console.print("[green]everything in sync[/]")
@@ -158,29 +163,31 @@ def make_plan(config: cfg.Config, me: str | None, peer: str | None) -> Plan:
     return planning.build(config, local, remote, local_scan, remote_scan, progress)
 
 
-def show_plan(plan: Plan) -> None:
+def show_plan(plan: Plan, *, plain: bool = False) -> None:
     names = plan.local.name, plan.remote.name
     table = Table(title=f"{names[0]} (here) <-> {names[1]}")
-    for column in ("Repository", "Branch", "Status", "Action"):
+    for column in ("", "Repository", "Branch", "Status", "Action"):
         table.add_column(column)
     for item in plan.pending:
-        action = (
-            "[yellow]" + escape(pending_text(item)) + "[/]"
-            if item.needs_decision
-            else escape(planning.describe(item, *names))
+        status_icon, status, action_icon, action_text = planning.icons(
+            item, *names, plain=plain
         )
+        action = escape(f"{action_icon} {action_text}")
+        if item.needs_decision:
+            action = f"[yellow]{action}[/]"
+        elif item.choice is Action.SKIP:
+            action = f"[dim]{action}[/]"
         table.add_row(
-            escape(item.repo), escape(item.branch or "-"), escape(item.status), action
+            status_icon,
+            escape(item.repo),
+            escape(item.branch or "-"),
+            escape(status),
+            action,
         )
     console.print(table)
     console.print(f"{len(plan.items) - len(plan.pending)} repositories in sync")
-
-
-def pending_text(item: Item, /) -> str:
-    """ "ask: " followed by the options for whichever decision is still open."""
-    if item.choice is None:
-        return "ask: " + " / ".join(item.options)
-    return "ask: " + " / ".join(FilesPolicy)
+    if plan.pending:
+        console.print(planning.legend(plan.pending, plain=plain), style="dim")
 
 
 def announce(plan: Plan):

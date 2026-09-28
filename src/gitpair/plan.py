@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 
 from gitpair._decide import count, decide, describe, resolved_files
 from gitpair._facts import ORIGIN_TIMEOUT, gather, origin_env, origin_state, peer_ref
+from gitpair._icons import icons, legend
 from gitpair._model import (
     NO_CHANGE,
     Action,
@@ -24,6 +25,8 @@ __all__ = [
     "describe",
     "count",
     "resolved_files",
+    "icons",
+    "legend",
     #: Enums
     "Action",
     "Step",

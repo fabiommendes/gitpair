@@ -15,7 +15,7 @@ delete them here. Unscheduled ideas live in [BACKLOG.md](BACKLOG.md).
 - [x] Scan both hosts, build the plan, apply fast-forwards and clones.
 - [x] Terminal UI for questions; `plan` and `sync --auto` for scripts.
 - [x] Shared config with track/ignore decisions written back.
-- [ ] Test against two real machines over ssh (desktop and laptop).
+- [x] Test against two real machines over ssh (r2d2 and c3po): scan, fetch and clone-there verified.
 - [ ] Publish to PyPI through the release workflow.
 
 ## 0.2.0: less friction
