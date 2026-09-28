@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-28
+
 ### Added
 
 - `gitpair plan`, `gitpair sync` (terminal UI or `--auto`) and `gitpair init`.
@@ -67,3 +69,6 @@ All notable changes to this project are documented here. The format follows
 - Push and take-local now delete the scratch `refs/gitpair/incoming/<branch>`
   ref on the remote even when the fast-forward or reset that follows it
   fails, instead of leaving it behind.
+
+[Unreleased]: https://github.com/fabiommendes/gitpair/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/fabiommendes/gitpair/releases/tag/v0.1.0
