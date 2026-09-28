@@ -120,6 +120,7 @@ def peer_ref(remote: Host, branch: str) -> str:
 class CompareOutcome(StrEnum):
     """Why a repository present on both hosts is, or is not, comparable."""
 
+    GIT_ERROR = "git-error"
     EMPTY = "empty"
     DETACHED = "detached"
     BRANCH_MISMATCH = "branch-mismatch"
@@ -205,6 +206,7 @@ def _gather_repo(
     if lstate is not None and rstate is not None:
         compare = _gather_compare(local, remote, lstate, rstate)
         comparable = compare.outcome not in (
+            CompareOutcome.GIT_ERROR,
             CompareOutcome.EMPTY,
             CompareOutcome.DETACHED,
             CompareOutcome.BRANCH_MISMATCH,
@@ -230,6 +232,8 @@ def _state_of(scan: dict, repo: str) -> RepoState | None:
 def _gather_compare(
     local: Host, remote: Host, lstate: RepoState, rstate: RepoState
 ) -> CompareFacts:
+    if lstate.error or rstate.error:
+        return CompareFacts(CompareOutcome.GIT_ERROR)
     if not lstate.head or not rstate.head:
         return CompareFacts(CompareOutcome.EMPTY)
     if not lstate.branch or not rstate.branch:

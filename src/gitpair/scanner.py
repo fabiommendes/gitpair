@@ -35,15 +35,24 @@ def scan(root: str, depth: int) -> dict:
 def find_repos(root: str, depth: int):
     """Yield the path of every git repository found under ``root``.
 
-    A directory is a repository when it has a ``.git`` entry; its
-    subdirectories are not searched. Otherwise, hidden directories,
-    ``SKIP_DIRS`` and symlinked directories are skipped, and the search
-    stops after ``depth`` levels.
+    A directory is a repository when its ``.git`` entry is a regular file
+    (a worktree or submodule's gitdir pointer) or a directory that contains
+    a ``HEAD`` file. Either way, its subdirectories are not searched: a
+    ``.git`` directory missing ``HEAD`` is not a repository either, and is
+    not descended into, so a broken repository is never silently replaced
+    by whatever real repositories happen to be nested under it. Otherwise,
+    hidden directories, ``SKIP_DIRS`` and symlinked directories are
+    skipped, and the search stops after ``depth`` levels.
     """
     if not os.path.isdir(root):
         return
-    if os.path.exists(os.path.join(root, ".git")):
+    git_path = os.path.join(root, ".git")
+    if os.path.isfile(git_path):
         yield root
+        return
+    if os.path.isdir(git_path):
+        if os.path.isfile(os.path.join(git_path, "HEAD")):
+            yield root
         return
     if depth <= 0:
         return
@@ -59,15 +68,43 @@ def find_repos(root: str, depth: int):
 
 
 def repo_state(path: str) -> dict:
-    """Branch, HEAD, dirty/untracked state and ``origin`` URL of one repository."""
-    status = _git(path, "status", "--porcelain", "--untracked-files=normal")
-    lines = status.splitlines() if status is not None else []
+    """Branch, HEAD, dirty/untracked state, ``origin`` URL and error of one repository.
+
+    Distinguishes a repository with no commit yet (an unborn branch: HEAD is
+    a valid symbolic ref, but ``rev-parse HEAD`` has nothing to resolve) from
+    one where git itself does not work (``rev-parse --git-dir`` or
+    ``status`` exits non-zero, e.g. a ``.git`` directory missing its
+    content). The former reports ``head=None`` with ``error=None``; the
+    latter reports every other field at its empty default and ``error`` set
+    to the first line of git's stderr.
+    """
+    git_dir, error = _git_checked(path, "rev-parse", "--git-dir")
+    if error is not None:
+        return _error_state(error)
+    status, error = _git_checked(
+        path, "status", "--porcelain", "--untracked-files=normal"
+    )
+    if error is not None:
+        return _error_state(error)
+    lines = status.splitlines() if status else []
     return {
         "branch": _git(path, "symbolic-ref", "--quiet", "--short", "HEAD"),
         "head": _git(path, "rev-parse", "--verify", "--quiet", "HEAD"),
         "dirty": any(not line.startswith("??") for line in lines),
         "untracked": any(line.startswith("??") for line in lines),
         "origin": _git(path, "remote", "get-url", "origin"),
+        "error": None,
+    }
+
+
+def _error_state(error: str) -> dict:
+    return {
+        "branch": None,
+        "head": None,
+        "dirty": False,
+        "untracked": False,
+        "origin": None,
+        "error": error,
     }
 
 
@@ -101,6 +138,15 @@ def _git(path: str, *args: str) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip()
+
+
+def _git_checked(path: str, *args: str) -> tuple[str | None, str | None]:
+    """Like ``_git``, but returns ``(None, first stderr line)`` on failure."""
+    result = subprocess.run(["git", "-C", path, *args], capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout).strip()
+        return None, stderr.splitlines()[0] if stderr else ""
+    return result.stdout.strip(), None
 
 
 if __name__ == "__main__":

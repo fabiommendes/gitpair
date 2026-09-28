@@ -51,3 +51,8 @@ All notable changes to this project are documented here. The format follows
   key, for example) instead of overriding it.
 - Fixed autopush wrongly reporting `origin` as diverged when `origin` has no
   `remote.<name>.fetch` refspec configured.
+- A `.git` directory with no usable content (for example an empty directory
+  left behind by a failed clone) is no longer treated as a repository, and a
+  directory where git itself fails is no longer reported as "empty
+  repository". Both are now listed with the git error as their status, and
+  neither offers to track the repository, only ignore or skip.

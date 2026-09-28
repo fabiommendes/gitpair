@@ -11,6 +11,7 @@ from gitpair.scanner import find_repos
 def make_repo(path: Path) -> None:
     path.mkdir(parents=True)
     (path / ".git").mkdir()
+    (path / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
 
 
 def test_finds_a_repo_at_the_root(tmp_path: Path):
@@ -65,6 +66,7 @@ def test_missing_root_yields_nothing(tmp_path: Path):
 
 def test_root_itself_a_repo_is_returned_regardless_of_depth(tmp_path: Path):
     (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
     assert list(find_repos(str(tmp_path), 0)) == [str(tmp_path)]
 
 
@@ -81,3 +83,21 @@ def test_permission_error_is_swallowed(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(os, "scandir", raise_permission_error)
     assert list(find_repos(str(tmp_path), 3)) == []
+
+
+def test_git_dir_without_head_is_not_a_repo_and_not_descended_into(tmp_path: Path):
+    (tmp_path / "broken" / ".git").mkdir(parents=True)
+    make_repo(tmp_path / "broken" / "nested")
+    assert list(find_repos(str(tmp_path), 5)) == []
+
+
+def test_git_dir_with_head_is_a_repo(tmp_path: Path):
+    make_repo(tmp_path / "app")
+    assert list(find_repos(str(tmp_path), 3)) == [str(tmp_path / "app")]
+
+
+def test_git_file_is_a_repo(tmp_path: Path):
+    path = tmp_path / "worktree"
+    path.mkdir()
+    (path / ".git").write_text("gitdir: /elsewhere/.git/worktrees/worktree\n")
+    assert list(find_repos(str(tmp_path), 3)) == [str(path)]

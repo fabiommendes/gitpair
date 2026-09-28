@@ -103,10 +103,19 @@ fetch or push has a two-minute timeout.
 ## Repository discovery
 
 gitpair walks `root` up to `depth` levels and stops at the first directory
-that contains `.git`, so nested repositories and submodules are not reported
-separately. Hidden directories and `node_modules`, `__pycache__`, `target`,
+that counts as a repository, so nested repositories and submodules are not
+reported separately. A directory counts as a repository when its `.git`
+entry is a file (a worktree or submodule's gitdir pointer) or a directory
+that contains a `HEAD` file; anything else under `.git` (for example an
+empty directory) does not count, and that directory is not searched any
+further. Hidden directories and `node_modules`, `__pycache__`, `target`,
 `dist` and `build` are skipped. Symlinked directories under `root` are
 skipped too.
+
+A repository where git itself fails (the `.git` directory exists but has no
+usable content, permissions are wrong, and so on) is still listed, with its
+status set to the error git reported, and gitpair never offers to track it:
+only ignore or skip.
 
 A repository not yet in `repos.track`, `repos.ignore` or a `[repo."<path>"]`
 table is new. Its first run gets no extra steps (`sync_ignored`, `autopush`):

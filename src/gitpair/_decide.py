@@ -173,6 +173,9 @@ class _ItemFields:
     behind: int = 0
     extras: list[Extra] = field(default_factory=list)
     file_conflicts: list[str] = field(default_factory=list)
+    #: True when git itself failed on one side. Kept out of Item: it only
+    #: needs to steer _mark_new (no track offered for a broken directory).
+    error: bool = False
 
 
 def _decide_item(
@@ -216,6 +219,8 @@ def _decide_compare(
     remote_name: str,
     facts: CompareFacts,
 ) -> _ItemFields:
+    if facts.outcome is CompareOutcome.GIT_ERROR:
+        return _git_error_fields(lstate, rstate, local_name, remote_name)
     if facts.outcome is CompareOutcome.EMPTY:
         return _ItemFields("empty repository", [Action.SKIP], Action.SKIP)
     if facts.outcome is CompareOutcome.DETACHED:
@@ -271,6 +276,15 @@ def _decide_divergence(
     )
 
 
+def _git_error_fields(
+    lstate: RepoState, rstate: RepoState, local_name: str, remote_name: str
+) -> _ItemFields:
+    where = local_name if lstate.error else remote_name
+    message = lstate.error if lstate.error else rstate.error
+    status = f"git error on {where}: {message}"
+    return _ItemFields(status, [Action.SKIP], Action.SKIP, error=True)
+
+
 def _decide_one_sided(
     lstate: RepoState | None,
     rstate: RepoState | None,
@@ -280,6 +294,9 @@ def _decide_one_sided(
     state = lstate or rstate
     assert state is not None
     where = local_name if lstate else remote_name
+    if state.error:
+        status = f"git error on {where}: {state.error}"
+        return _ItemFields(status, [Action.SKIP], Action.SKIP, error=True)
     if not state.head or not state.branch:
         status = f"only on {where}, no branch to clone"
         return _ItemFields(status, [Action.SKIP], Action.SKIP)
@@ -288,9 +305,13 @@ def _decide_one_sided(
 
 
 def _mark_new(fields: _ItemFields) -> _ItemFields:
-    """Repositories missing from the config always need a decision."""
+    """Repositories missing from the config always need a decision.
+
+    A repository where git failed is never offered :attr:`~Action.TRACK`:
+    there is nothing to track while the directory is broken.
+    """
     options = list(fields.options)
-    if options == [Action.SKIP]:
+    if options == [Action.SKIP] and not fields.error:
         options = [Action.TRACK, Action.SKIP]
     options.insert(-1, Action.IGNORE)
     return replace(

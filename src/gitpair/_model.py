@@ -90,6 +90,10 @@ class RepoState:
     dirty: bool
     untracked: bool
     origin: str | None
+    #: First line of git's stderr when git itself failed in this repository
+    #: (e.g. a ``.git`` directory with no usable content). ``None`` when git
+    #: worked, including the unborn-branch case (no commit yet).
+    error: str | None = None
 
     @classmethod
     def from_scan(cls, root: str, repo: str, data: dict) -> RepoState:
@@ -98,7 +102,9 @@ class RepoState:
         Args:
             root: the scan's root directory, as returned in ``scan["root"]``.
             repo: the repository's path relative to ``root``.
-            data: the repository's entry in ``scan["repos"]``.
+            data: the repository's entry in ``scan["repos"]``. Entries from
+                an older scanner without an ``"error"`` key default to
+                ``error=None``.
         """
         return cls(path=os.path.join(root, repo), **data)
 

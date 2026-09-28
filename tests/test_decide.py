@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from conftest import World
+
 from gitpair import config as cfg
+from gitpair import scanner
 from gitpair._decide import decide
 from gitpair._facts import (
     CompareFacts,
@@ -46,10 +49,20 @@ def make_config(
 
 
 def state(
-    *, branch: str | None = "main", head: str | None = "sha", dirty: bool = False
+    *,
+    branch: str | None = "main",
+    head: str | None = "sha",
+    dirty: bool = False,
+    error: str | None = None,
 ) -> RepoState:
     return RepoState(
-        path="app", branch=branch, head=head, dirty=dirty, untracked=False, origin=None
+        path="app",
+        branch=branch,
+        head=head,
+        dirty=dirty,
+        untracked=False,
+        origin=None,
+        error=error,
     )
 
 
@@ -111,6 +124,35 @@ def test_fetch_failure_is_reported_but_stays_comparable():
     assert item.status == "fetch failed: boom"
     assert item.choice is Action.SKIP
     assert item.comparable  # extras still apply for a tracked repo
+
+
+def test_git_error_on_local_is_reported_and_skipped():
+    facts = RepoFacts(
+        "app",
+        state(head=None, branch=None, error="fatal: not a git repository"),
+        state(),
+        CompareFacts(CompareOutcome.GIT_ERROR),
+    )
+    item = build(facts)
+    assert item.status == f"git error on {HERE}: fatal: not a git repository"
+    assert item.options == [Action.SKIP]
+    assert item.choice is Action.SKIP
+    assert not item.comparable
+    assert not item.in_sync
+    assert item.extras == []
+
+
+def test_git_error_on_remote_is_reported_and_skipped():
+    facts = RepoFacts(
+        "app",
+        state(),
+        state(head=None, branch=None, error="fatal: not a git repository"),
+        CompareFacts(CompareOutcome.GIT_ERROR),
+    )
+    item = build(facts)
+    assert item.status == f"git error on {THERE}: fatal: not a git repository"
+    assert item.choice is Action.SKIP
+    assert not item.comparable
 
 
 def test_ahead_is_pushed_automatically():
@@ -243,6 +285,17 @@ def test_only_local_without_a_branch_has_nothing_to_clone():
     assert item.choice is Action.SKIP
 
 
+def test_one_sided_git_error_is_reported_and_skipped():
+    facts = RepoFacts(
+        "app", state(head=None, branch=None, error="fatal: not a git repository"), None
+    )
+    item = build(facts)
+    assert item.status == f"git error on {HERE}: fatal: not a git repository"
+    assert item.options == [Action.SKIP]
+    assert item.choice is Action.SKIP
+    assert not item.comparable
+
+
 def test_one_sided_new_repo_can_be_ignored():
     facts = RepoFacts("app", state(), None)
     item = build(facts, make_config())
@@ -289,6 +342,31 @@ def test_new_repo_never_gets_extras():
     assert item.new
     assert item.extras == []
     assert item.status == "new, in sync"
+
+
+def test_new_repo_with_git_error_offers_no_track():
+    facts = RepoFacts(
+        "app",
+        state(head=None, branch=None, error="fatal: not a git repository"),
+        state(),
+        CompareFacts(CompareOutcome.GIT_ERROR),
+    )
+    item = build(facts, make_config())
+    assert item.new
+    assert item.status == f"new, git error on {HERE}: fatal: not a git repository"
+    assert item.options == [Action.IGNORE, Action.SKIP]
+    assert item.choice is None
+    assert not item.in_sync
+
+
+def test_new_one_sided_repo_with_git_error_offers_no_track():
+    facts = RepoFacts(
+        "app", state(head=None, branch=None, error="fatal: not a git repository"), None
+    )
+    item = build(facts, make_config())
+    assert item.new
+    assert item.options == [Action.IGNORE, Action.SKIP]
+    assert item.choice is None
 
 
 # sync_ignored extras
@@ -491,6 +569,39 @@ def test_origin_fetch_failure_is_reported():
     item = build(facts)
     assert item.status == "in sync; could not fetch origin: boom"
     assert item.extras == []
+
+
+# Real git failures, through scanner.repo_state (regression for the 213
+# empty-.git-directories bug: git failing must never read as "empty")
+
+
+def test_head_deleted_after_creation_is_a_git_error_not_an_empty_repo(world: World):
+    world.repo("app")
+    (world.here / "app" / ".git" / "HEAD").unlink()
+
+    # Simulate find_repos having found "app" before HEAD went missing: build
+    # the scan dicts straight from scanner.repo_state, the same way scan() does.
+    local_scan = {
+        "root": str(world.here),
+        "repos": {"app": scanner.repo_state(str(world.here / "app"))},
+    }
+    remote_scan = {
+        "root": str(world.there),
+        "repos": {"app": scanner.repo_state(str(world.there / "app"))},
+    }
+    config = make_config(track=("app",))
+    local = Host(cfg.HostConfig(name=HERE, hostname=HERE, ssh=HERE, root="~"))
+    remote = Host(cfg.HostConfig(name=THERE, hostname=THERE, ssh=THERE, root="~"))
+
+    facts = gather(config, local, remote, local_scan, remote_scan)
+    item = decide(config, facts, HERE, THERE)[0]
+
+    assert "empty" not in item.status
+    assert item.status.startswith(f"git error on {HERE}: ")
+    assert "not a git repository" in item.status
+    assert item.options == [Action.SKIP]
+    assert item.choice is Action.SKIP
+    assert not item.comparable
 
 
 # gather() filters ignored repositories before any host is touched
