@@ -64,3 +64,6 @@ All notable changes to this project are documented here. The format follows
   directory where git itself fails is no longer reported as "empty
   repository". Both are now listed with the git error as their status, and
   neither offers to track the repository, only ignore or skip.
+- Push and take-local now delete the scratch `refs/gitpair/incoming/<branch>`
+  ref on the remote even when the fast-forward or reset that follows it
+  fails, instead of leaving it behind.

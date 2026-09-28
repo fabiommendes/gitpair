@@ -143,8 +143,10 @@ def _pull(local: Host, remote: Host, lstate: RepoState, rstate: RepoState) -> No
 
 def _push(local: Host, remote: Host, lstate: RepoState, rstate: RepoState) -> None:
     incoming = _send(local, remote, lstate, rstate.path)
-    remote.git(rstate.path, "merge", "--ff-only", "--quiet", incoming)
-    remote.git(rstate.path, "update-ref", "-d", incoming)
+    try:
+        remote.git(rstate.path, "merge", "--ff-only", "--quiet", incoming)
+    finally:
+        _delete_incoming(remote, rstate.path, incoming)
 
 
 def _merge(local: Host, remote: Host, lstate: RepoState, rstate: RepoState) -> None:
@@ -174,9 +176,13 @@ def _take_local(
     local: Host, remote: Host, lstate: RepoState, rstate: RepoState
 ) -> None:
     incoming = _send(local, remote, lstate, rstate.path)
-    remote.git(rstate.path, "update-ref", BACKUP.format(branch=rstate.branch), "HEAD")
-    remote.git(rstate.path, "reset", "--hard", "--quiet", incoming)
-    remote.git(rstate.path, "update-ref", "-d", incoming)
+    try:
+        remote.git(
+            rstate.path, "update-ref", BACKUP.format(branch=rstate.branch), "HEAD"
+        )
+        remote.git(rstate.path, "reset", "--hard", "--quiet", incoming)
+    finally:
+        _delete_incoming(remote, rstate.path, incoming)
 
 
 def _clone_here(local: Host, remote: Host, repo: str, rstate: RepoState) -> None:
@@ -221,6 +227,16 @@ def _send(local: Host, remote: Host, lstate: RepoState, rpath: str) -> str:
         env=remote.peer_env(),
     )  # fmt: skip
     return incoming
+
+
+def _delete_incoming(remote: Host, rpath: str, incoming: str) -> None:
+    """Delete the scratch ref left by :func:`_send`, even after a failure.
+
+    Suppresses a ``CommandError`` from the delete itself so a fast-forward or
+    reset failure is what gets reported, not a follow-up cleanup error.
+    """
+    with contextlib.suppress(CommandError):
+        remote.git(rpath, "update-ref", "-d", incoming)
 
 
 def _ref_for(remote: Host, lstate: RepoState) -> str:

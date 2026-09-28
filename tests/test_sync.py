@@ -71,6 +71,28 @@ def test_dirty_work_tree_asks(world: World):
     assert "dirty on there" in item.status
 
 
+def test_push_cleans_up_incoming_ref_when_remote_merge_fails(world: World):
+    world.track.append("app")
+    world.repo("app")
+    commit(world.here / "app", "README", "local change")
+    (world.there / "app/README").write_text("dirty remote edit")
+
+    plan = world.plan()
+    item = only(plan)
+    assert item.needs_decision
+    item.choice = Action.PUSH
+
+    remote = world.there / "app"
+    before_head = git(remote, "rev-parse", "HEAD")
+
+    outcome = session.run(world.loaded, plan)
+    assert [failed_item for failed_item, _ in outcome.failed] == [item]
+
+    assert git(remote, "rev-parse", "HEAD") == before_head
+    assert (remote / "README").read_text() == "dirty remote edit"
+    assert git(remote, "for-each-ref", "refs/gitpair/incoming") == ""
+
+
 def test_diverged_branches_ask_and_can_merge(world: World):
     world.track.append("app")
     world.repo("app")
