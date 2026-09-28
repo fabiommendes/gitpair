@@ -102,3 +102,78 @@ def test_remote_path_outside_home_is_absolute():
 def test_remote_path_quotes_special_characters():
     path = Path.home() / "we ird's"
     assert cfg.remote_path(path) == "\"$HOME\"/'we ird'\"'\"'s'"
+
+
+# Config value type checks (R6)
+
+TWO_HOSTS = '[hosts.a]\nssh = "a"\n[hosts.b]\nssh = "b"\n'
+
+
+def test_depth_must_be_an_integer(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[settings]\ndepth = "3"\n')
+    with pytest.raises(cfg.ConfigError, match="settings.depth"):
+        cfg.load(path)
+
+
+def test_push_config_must_be_a_boolean(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[settings]\npush_config = "yes"\n')
+    with pytest.raises(cfg.ConfigError, match="settings.push_config"):
+        cfg.load(path)
+
+
+def test_settings_autopush_must_be_a_boolean(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[settings]\nautopush = "yes"\n')
+    with pytest.raises(cfg.ConfigError, match="settings.autopush"):
+        cfg.load(path)
+
+
+def test_host_table_field_must_be_a_string(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[hosts.a]\nssh = 1\n[hosts.b]\nssh = "b"\n')
+    with pytest.raises(cfg.ConfigError, match="hosts.a.ssh"):
+        cfg.load(path)
+
+
+def test_host_entry_must_be_a_table(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[hosts]\na = "oops"\n\n[hosts.b]\nssh = "b"\n')
+    with pytest.raises(cfg.ConfigError, match="hosts.a"):
+        cfg.load(path)
+
+
+def test_repos_track_must_be_a_list_of_strings(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + "\n[repos]\ntrack = [1, 2]\n")
+    with pytest.raises(cfg.ConfigError, match="repos.track"):
+        cfg.load(path)
+
+
+def test_repos_ignore_must_be_a_list_of_strings(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[repos]\nignore = "archived/*"\n')
+    with pytest.raises(cfg.ConfigError, match="repos.ignore"):
+        cfg.load(path)
+
+
+def test_repo_table_must_be_a_table(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[repo]\napp = "oops"\n')
+    with pytest.raises(cfg.ConfigError, match="app"):
+        cfg.load(path)
+
+
+def test_repo_table_sync_ignored_must_be_a_list_of_strings(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[repo.app]\nsync_ignored = "data"\n')
+    with pytest.raises(cfg.ConfigError, match="sync_ignored"):
+        cfg.load(path)
+
+
+def test_repo_table_autopush_must_be_a_boolean(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(TWO_HOSTS + '\n[repo.app]\nautopush = "yes"\n')
+    with pytest.raises(cfg.ConfigError, match="autopush"):
+        cfg.load(path)

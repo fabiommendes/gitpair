@@ -11,7 +11,10 @@
    fetch the remote branch into `refs/gitpair/<remote>/<branch>` and count
    commits on each side with `git rev-list --left-right --count`.
    For repositories with options, also compare the ignored files listed in
-   `sync_ignored` on both hosts and check whether `origin` is behind.
+   `sync_ignored` on both hosts and check whether `origin` is behind, which
+   fetches into `FETCH_HEAD`. `gitpair plan` stops here: it never touches
+   branches, work trees, uncommitted files or `origin` itself, but this step
+   does write to `refs/gitpair/*` and `FETCH_HEAD`.
 4. **Decide.** The terminal UI lists everything that is not in sync. Safe
    actions are preselected; the rest wait for an answer.
 5. **Apply.** Run the chosen actions and their extra steps (copy ignored
@@ -31,6 +34,12 @@ this means a run opens one TCP connection to the remote and authenticates
 once, for both the `RemoteHost` traffic and the peer git operations.
 Commands to `origin` are unrelated to this socket: they always use a fresh
 ssh connection, keeping the user's own `core.sshCommand` if set.
+
+fish, or any other login shell on the remote, works fine: every command sent
+over ssh is quoted with `shlex.join`, whose output was tested under `fish -c`
+with quotes, backslashes, `$HOME` and `~`. The only difference from a POSIX
+shell is a literal double backslash (`\\`) inside the single quotes
+`shlex.join` produces, which fish interprets differently.
 
 ## Git commands per action
 
@@ -63,7 +72,9 @@ and the remote fast-forwards from it.
 
 - `refs/gitpair/<host>/<branch>`: last fetched state of the peer branch.
 - `refs/gitpair/incoming/<branch>`: scratch ref, deleted after use.
-- `refs/gitpair/backup/<branch>`: commit that a reset replaced.
+- `refs/gitpair/backup/<branch>`: commit that a reset replaced. There is one
+  per branch: a second reset overwrites it. The previous HEAD is also in
+  `git reflog` for that branch, so it is not the only copy.
 
 They do not show up in `git branch` and are never pushed to other remotes.
 Remove them with `git for-each-ref --format='%(refname)' refs/gitpair | xargs -n1 git update-ref -d`.

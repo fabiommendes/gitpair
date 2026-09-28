@@ -15,7 +15,7 @@ from gitpair._facts import (
     OriginFacts,
     RepoFacts,
 )
-from gitpair._model import NO_CHANGE, Action, Extra, Item, RepoState, Step
+from gitpair._model import NO_CHANGE, Action, Extra, FilesPolicy, Item, RepoState, Step
 from gitpair.config import Config
 
 
@@ -41,28 +41,58 @@ def decide(
 
 def compare_files(
     here: dict[str, list[int]], there: dict[str, list[int]], /
-) -> tuple[list[str], list[str], list[str]]:
-    """Split files into (copy there, copy here, same mtime but different).
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Split files into (copy there, copy here, conflicts, clashes).
 
-    Each mapping gives ``[size, mtime]`` per relative path.
+    Each mapping gives ``[size, mtime]`` per relative path. A name missing on
+    one side always lands in the matching list: copying it loses nothing. A
+    name present on both sides with a different mtime also lands there,
+    picking the newer copy, but is repeated in ``conflicts``: it is only
+    copied once the item's ``files_policy`` is decided (see
+    :func:`resolved_files`). Same mtime but a different size is a clash:
+    reported, never copied.
 
     >>> compare_files({"a": [1, 100], "only_here": [1, 1]}, {"a": [1, 50]})
-    (['a', 'only_here'], [], [])
+    (['a', 'only_here'], [], ['a'], [])
     >>> compare_files({"a": [1, 100]}, {"a": [2, 100]})
-    ([], [], ['a'])
+    ([], [], [], ['a'])
     """
-    to_there, to_here, clashes = [], [], []
+    to_there, to_here, conflicts, clashes = [], [], [], []
     for name in sorted(here.keys() | there.keys()):
         mine, theirs = here.get(name), there.get(name)
         if mine == theirs:
             continue
+        both_sides = mine is not None and theirs is not None
         if theirs is None or mine is not None and mine[1] > theirs[1]:
             to_there.append(name)
+            if both_sides:
+                conflicts.append(name)
         elif mine is None or theirs[1] > mine[1]:
             to_here.append(name)
+            if both_sides:
+                conflicts.append(name)
         else:
             clashes.append(name)
-    return to_there, to_here, clashes
+    return to_there, to_here, conflicts, clashes
+
+
+def resolved_files(item: Item, extra: Extra, /) -> list[str]:
+    """Files from ``extra`` that will actually be copied, given ``item.files_policy``.
+
+    Conflicting files (:attr:`~gitpair._model.Item.file_conflicts`) are kept
+    only when the policy is :attr:`~gitpair._model.FilesPolicy.NEWER_WINS`.
+    They are dropped for :attr:`~gitpair._model.FilesPolicy.SKIP_CONFLICTS`
+    and for the undecided default (``None``), so a conflict is never copied
+    without an explicit choice. Every other file is always kept.
+
+    >>> item = Item("app", None, None, "", [], file_conflicts=["a"])
+    >>> resolved_files(item, Extra(Step.FILES_THERE, "", ["a", "b"]))
+    ['b']
+    """
+    if not item.file_conflicts or item.files_policy is FilesPolicy.NEWER_WINS:
+        return extra.files
+    conflicts = set(item.file_conflicts)
+    return [name for name in extra.files if name not in conflicts]
 
 
 def count(items: list, noun: str) -> str:
@@ -79,6 +109,11 @@ def count(items: list, noun: str) -> str:
 def describe(item: Item, local: str, remote: str) -> str:
     """The chosen action followed by the extra steps.
 
+    A file conflict adds one more piece, naming the count and the chosen
+    :class:`~gitpair._model.FilesPolicy` (falling back to "skip conflicting
+    files", the same default :func:`resolved_files` uses, when it is not
+    decided yet, which should not happen for an item passed here).
+
     >>> item = Item("app", None, None, "ahead by 1", [Action.PUSH], choice=Action.PUSH)
     >>> describe(item, "here", "there")
     'fast-forward there from here'
@@ -86,9 +121,38 @@ def describe(item: Item, local: str, remote: str) -> str:
     if item.choice is None:
         return "?"
     text = item.choice.describe(local, remote)
-    if item.choice in NO_CHANGE or not item.extras:
+    if item.choice in NO_CHANGE:
         return text
-    return " + ".join([text, *(extra.description for extra in item.extras)])
+    pieces = [
+        piece
+        for extra in item.extras
+        if (piece := _describe_extra(item, extra, local, remote)) is not None
+    ]
+    if item.file_conflicts:
+        pieces.append(_describe_conflicts(item))
+    if not pieces:
+        return text
+    return " + ".join([text, *pieces])
+
+
+def _describe_extra(item: Item, extra: Extra, local: str, remote: str) -> str | None:
+    """``extra``'s description, adjusted for a skipped conflict; ``None`` drops it."""
+    file_step = extra.step in (Step.FILES_THERE, Step.FILES_HERE)
+    if not item.file_conflicts or not file_step:
+        return extra.description
+    files = resolved_files(item, extra)
+    if not files:
+        return None
+    if len(files) == len(extra.files):
+        return extra.description
+    name = remote if extra.step is Step.FILES_THERE else local
+    return f"copy {count(files, 'file')} to {name}"
+
+
+def _describe_conflicts(item: Item) -> str:
+    # None behaves like SKIP_CONFLICTS in resolved_files(): match the text.
+    policy = item.files_policy or FilesPolicy.SKIP_CONFLICTS
+    return f"{count(item.file_conflicts, 'conflict')}: {policy.describe()}"
 
 
 #
@@ -108,6 +172,7 @@ class _ItemFields:
     ahead: int = 0
     behind: int = 0
     extras: list[Extra] = field(default_factory=list)
+    file_conflicts: list[str] = field(default_factory=list)
 
 
 def _decide_item(
@@ -140,6 +205,7 @@ def _decide_item(
         behind=fields.behind,
         comparable=fields.comparable,
         extras=fields.extras,
+        file_conflicts=fields.file_conflicts,
     )
 
 
@@ -242,12 +308,14 @@ def _decide_extras(
     """Fold the copy of ignored files and the push to origin into ``fields``."""
     notes: list[str] = []
     new_extras: list[Extra] = []
+    file_conflicts: list[str] = []
     if extras.ignored_files is not None:
-        files_extras, files_notes = _decide_ignored_files(
+        files_extras, files_notes, conflicts = _decide_ignored_files(
             extras.ignored_files, local_name, remote_name
         )
         new_extras += files_extras
         notes += files_notes
+        file_conflicts = conflicts
     if extras.origin is not None:
         origin_extra, origin_notes = _decide_origin(extras.origin)
         if origin_extra is not None:
@@ -261,8 +329,8 @@ def _decide_extras(
     in_sync, options, choice = fields.in_sync, fields.options, fields.choice
     if new_extras and in_sync:
         in_sync = False
-        options = [Action.KEEP, Action.SKIP]
-        choice = Action.KEEP
+        options = [Action.NONE, Action.SKIP]
+        choice = Action.NONE
     elif notes:
         in_sync = False  # show the warning in the plan
 
@@ -273,21 +341,23 @@ def _decide_extras(
         options=options,
         choice=choice,
         extras=new_extras,
+        file_conflicts=file_conflicts,
     )
 
 
 def _decide_ignored_files(
     facts: IgnoredFilesFacts, local_name: str, remote_name: str
-) -> tuple[list[Extra], list[str]]:
+) -> tuple[list[Extra], list[str], list[str]]:
+    """Extras, status notes, and the names that are conflicts (need a decision)."""
     notes: list[str] = []
     if facts.not_ignored:
         notes.append(f"not ignored by git: {', '.join(facts.not_ignored)}")
     if facts.error:
         notes.append(f"could not list ignored files: {facts.error}")
-        return [], notes
+        return [], notes, []
     if facts.here is None or facts.there is None:
-        return [], notes
-    to_there, to_here, clashes = compare_files(facts.here, facts.there)
+        return [], notes, []
+    to_there, to_here, conflicts, clashes = compare_files(facts.here, facts.there)
     extras: list[Extra] = []
     if to_there:
         extras.append(
@@ -305,9 +375,11 @@ def _decide_ignored_files(
                 to_here,
             )
         )
+    if conflicts:
+        notes.append(f"{count(conflicts, 'conflict')}, direction undecided")
     if clashes:
         notes.append(f"{count(clashes, 'file')} differ with the same mtime")
-    return extras, notes
+    return extras, notes, conflicts
 
 
 def _decide_origin(facts: OriginFacts) -> tuple[Extra | None, list[str]]:

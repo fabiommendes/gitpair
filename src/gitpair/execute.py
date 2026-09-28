@@ -18,6 +18,7 @@ from gitpair.plan import (
     origin_env,
     origin_state,
     peer_ref,
+    resolved_files,
 )
 
 __all__ = ["apply"]
@@ -60,21 +61,15 @@ def apply(plan: Plan, item: Item) -> None:
         for extra in item.extras:
             match extra.step:
                 case Step.FILES_THERE:
-                    _copy_there(
-                        local,
-                        remote,
-                        _need(item.local),
-                        _need(item.remote),
-                        extra.files,
-                    )
+                    if files := resolved_files(item, extra):
+                        _copy_there(
+                            local, remote, _need(item.local), _need(item.remote), files
+                        )
                 case Step.FILES_HERE:
-                    _copy_here(
-                        local,
-                        remote,
-                        _need(item.local),
-                        _need(item.remote),
-                        extra.files,
-                    )
+                    if files := resolved_files(item, extra):
+                        _copy_here(
+                            local, remote, _need(item.local), _need(item.remote), files
+                        )
                 case Step.ORIGIN:
                     _push_origin(local, _need(item.local))
     except OSError as error:

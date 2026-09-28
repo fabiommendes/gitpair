@@ -63,8 +63,12 @@ does, not how great it is.
   remote uses a push to `refs/gitpair/incoming/<branch>` followed by a
   fast-forward on the remote.
 - No action may lose commits or uncommitted work unless the user picked it in
-  the UI. Destructive actions save the old HEAD in `refs/gitpair/backup/`.
-  `--auto` only runs actions that `plan.py` marked as automatic.
+  the UI. This also covers ignored files: a conflicting one (present on both
+  hosts with a different mtime) is never copied without an explicit
+  `files_policy` choice, the same way a diverged branch is never reset
+  without an explicit `Action`. Destructive actions save the old HEAD in
+  `refs/gitpair/backup/`. `--auto` only runs actions that `plan.py` marked as
+  automatic, and treats an undecided `files_policy` as `SKIP_CONFLICTS`.
 - Repositories not in `repos.track` always need a decision, even when the sync
   itself would be automatic.
 - Ignored files are copied with `tar` over ssh, never with rsync, which is not

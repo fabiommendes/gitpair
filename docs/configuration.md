@@ -68,9 +68,16 @@ rejected when the config is loaded.
 gitpair compares the size and modification time of every regular file under
 the entries on both hosts:
 
-- a file present on one host only is copied to the other;
-- a file present on both is replaced by the copy with the newer mtime;
-- files with the same mtime but different sizes are reported and left alone;
+- a file present on one host only is copied to the other automatically;
+- a file present on both hosts with a different size or mtime is a conflict:
+  it is not copied until you decide. gitpair asks for a `files_policy`:
+  "newer wins" copies each conflicting file in the direction of the newer
+  mtime (the previous, unconditional behavior); "skip conflicts" leaves
+  conflicting files alone and still copies the one-sided ones. `--auto`
+  treats an undecided policy as skip, so the safe, one-sided copies and the
+  git action still run automatically;
+- files with the same mtime but different sizes are reported and left alone,
+  always, regardless of the policy;
 - deletions are not propagated. Delete the file on both hosts.
 
 Symbolic links are skipped. The comparison relies on mtimes, so keep the
@@ -78,7 +85,9 @@ clocks of both machines synchronized (NTP).
 
 Files are copied with `tar` over the same ssh connection, after the git
 action for that repository. Skipping the repository in the UI also skips the
-copy.
+copy. The `data` extraction filter used on the receiving side drops the
+group and other write bits of copied files; `tar -x` on the remote follows
+directory symlinks that already exist there.
 
 ### `autopush`
 
@@ -96,4 +105,10 @@ fetch or push has a two-minute timeout.
 gitpair walks `root` up to `depth` levels and stops at the first directory
 that contains `.git`, so nested repositories and submodules are not reported
 separately. Hidden directories and `node_modules`, `__pycache__`, `target`,
-`dist` and `build` are skipped.
+`dist` and `build` are skipped. Symlinked directories under `root` are
+skipped too.
+
+A repository not yet in `repos.track`, `repos.ignore` or a `[repo."<path>"]`
+table is new. Its first run gets no extra steps (`sync_ignored`, `autopush`):
+they start applying from the next run, once you have tracked it or given it
+a `[repo."<path>"]` table.

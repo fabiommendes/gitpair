@@ -67,7 +67,13 @@ ssh server is needed. See `tests/conftest.py`.
 
 ## Releasing
 
-Maintainers only:
+One-time setup, done: `release.yml` publishes with a
+[PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/), not a
+token. It needs, on PyPI, a trusted publisher for owner `fabiommendes`,
+repository `gitpair`, workflow `release.yml`, environment `pypi`; and, on
+GitHub, a repository environment named `pypi` that the workflow deploys to.
+
+Maintainers only, for every release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` to a new version section.
 2. Bump `version` in `pyproject.toml` and `__version__` in

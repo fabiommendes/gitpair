@@ -17,7 +17,7 @@ from gitpair import __version__, session
 from gitpair import config as cfg
 from gitpair import plan as planning
 from gitpair.hosts import CommandError
-from gitpair.plan import Action, Plan
+from gitpair.plan import Action, FilesPolicy, Item, Plan
 
 console = Console()
 
@@ -120,6 +120,10 @@ def sync(args: argparse.Namespace) -> int:
         for item in plan.items:
             if item.choice is None:
                 item.choice = Action.SKIP
+            # The one-sided copies and the git action are still safe; only
+            # skip the conflicting files, which need an explicit choice.
+            if item.file_conflicts and item.files_policy is None:
+                item.files_policy = FilesPolicy.SKIP_CONFLICTS
     else:
         from gitpair.tui import PlanApp
 
@@ -161,15 +165,22 @@ def show_plan(plan: Plan) -> None:
         table.add_column(column)
     for item in plan.pending:
         action = (
-            escape(planning.describe(item, *names))
-            if item.choice
-            else "[yellow]ask: " + " / ".join(item.options) + "[/]"
+            "[yellow]" + escape(pending_text(item)) + "[/]"
+            if item.needs_decision
+            else escape(planning.describe(item, *names))
         )
         table.add_row(
             escape(item.repo), escape(item.branch or "-"), escape(item.status), action
         )
     console.print(table)
     console.print(f"{len(plan.items) - len(plan.pending)} repositories in sync")
+
+
+def pending_text(item: Item, /) -> str:
+    """ "ask: " followed by the options for whichever decision is still open."""
+    if item.choice is None:
+        return "ask: " + " / ".join(item.options)
+    return "ask: " + " / ".join(FilesPolicy)
 
 
 def announce(plan: Plan):

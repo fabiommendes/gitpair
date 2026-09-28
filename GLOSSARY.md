@@ -13,8 +13,8 @@ UI text. Ask the human before adding a new term defined in a conversation.
 ## Action
 
 What gitpair does to one repository: `pull`, `push`, `merge`, `take-local`,
-`take-remote`, `clone-here`, `clone-there`, `track`, `ignore` or `skip`.
-`plan.Action` in code.
+`take-remote`, `clone-here`, `clone-there`, `track`, `ignore`, `none` or
+`skip`. `plan.Action` in code.
 
 ## Automatic action
 
@@ -27,6 +27,13 @@ host. The only actions `--auto` runs.
 `refs/gitpair/backup/<branch>`. The HEAD that a `take-local` or `take-remote`
 reset replaced.
 
+## Conflict
+
+An ignored file listed in `sync_ignored`, present on both hosts with a
+different `[size, mtime]`. Not copied until the item's `files_policy` is
+decided: "newer wins" or skip. Same mtime but a different size is a warning
+instead, never copied. `Item.file_conflicts` in code.
+
 ## Dirty
 
 A work tree with uncommitted changes to tracked files. Untracked files do not
@@ -37,6 +44,13 @@ make a repository dirty.
 Work done for a repository after its action: copy ignored files to either
 host, or push to origin. `plan.Extra` and `plan.Step` in code. Skipped
 together with the repository.
+
+## Files policy
+
+How to handle conflicting ignored files for one item: `newer-wins` (copy
+each conflict in the direction of the newer mtime) or `skip-conflicts`
+(leave conflicts alone, still copy the one-sided files). `plan.FilesPolicy`
+in code, `Item.files_policy`.
 
 ## Host
 
@@ -53,11 +67,6 @@ ignores them, gitpair copies them between hosts.
 `refs/gitpair/incoming/<branch>`. Scratch ref on the remote host that receives
 pushed commits before the remote fast-forwards from it. Deleted after use.
 
-## Keep
-
-The action for a repository whose commits are already in sync but that has
-extra steps to run.
-
 ## Item
 
 One row of the plan: a repository, its state on both hosts, a status line, the
@@ -72,6 +81,11 @@ The host gitpair is running on, detected by matching the machine hostname with
 
 A repository found on a host that is in neither `repos.track` nor
 `repos.ignore`. Always requires a decision.
+
+## None
+
+The action for a repository whose commits are already in sync but that has
+extra steps to run: no git changes, only the extras.
 
 ## Peer ref
 

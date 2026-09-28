@@ -30,6 +30,8 @@ priority. Move items to [ROADMAP.md](ROADMAP.md) when they get a release.
   it is cloned to a host.
 * [ ] `autopush` pushes from the local host only. If only the remote has
   credentials for origin, it fails.
+* [ ] No lock against two runs happening on both hosts at the same time: the
+  forced push to `refs/gitpair/incoming/<branch>` can collide.
 
 ## Testing
 
@@ -41,3 +43,6 @@ priority. Move items to [ROADMAP.md](ROADMAP.md) when they get a release.
 * [ ] Show the commit list (`git log --oneline`) of the incoming commits in the
   question dialog.
 * [ ] Show in-sync repositories behind a toggle.
+* [ ] The "copy N files" text in an extra step is computed before the files
+  policy is chosen, so with `skip conflicting files` it can count files that
+  are not copied. Compute the description from `resolved_files` instead.

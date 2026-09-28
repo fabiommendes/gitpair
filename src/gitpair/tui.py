@@ -10,12 +10,23 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Label, OptionList
 from textual.widgets.option_list import Option
 
-from gitpair.plan import Action, Item, Plan, describe
+from gitpair.plan import Action, FilesPolicy, Item, Plan, count, describe
 
 COLUMNS = ("Repository", "Branch", "Status", "Action")
 
+#: Either question a :class:`ChoiceScreen` can ask: the git action, or, when
+#: an item has file conflicts, what to do with them.
+Choice = Action | FilesPolicy
 
-class ChoiceScreen(ModalScreen[Action | None]):
+
+class ChoiceScreen(ModalScreen[Choice | None]):
+    """A modal asking the user to pick one of ``choices``.
+
+    Used both for an item's git action and, when it has file conflicts, for
+    its :class:`~gitpair.plan.FilesPolicy`: two separate questions rather
+    than one combined option list, to keep each answer's text short.
+    """
+
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
     DEFAULT_CSS = """
     ChoiceScreen { align: center middle; }
@@ -27,21 +38,36 @@ class ChoiceScreen(ModalScreen[Action | None]):
     ChoiceScreen OptionList { height: auto; }
     """
 
-    def __init__(self, item: Item, plan: Plan):
+    def __init__(self, header: str, choices: list[tuple[Choice, str]]):
         super().__init__()
-        self.item = item
-        self.plan = plan
+        self.header = header
+        self.choices = choices
 
     def compose(self) -> ComposeResult:
-        names = self.plan.local.name, self.plan.remote.name
         with Vertical():
-            yield Label(f"[b]{escape(self.item.repo)}[/b]  {escape(self.item.status)}")
-            yield OptionList(
-                *(Option(action.describe(*names)) for action in self.item.options)
-            )
+            yield Label(self.header)
+            yield OptionList(*(Option(text) for _, text in self.choices))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(self.item.options[event.option_index])
+        self.dismiss(self.choices[event.option_index][0])
+
+
+def _action_choices(item: Item, plan: Plan) -> list[tuple[Choice, str]]:
+    names = plan.local.name, plan.remote.name
+    return [(action, action.describe(*names)) for action in item.options]
+
+
+def _action_header(item: Item) -> str:
+    return f"[b]{escape(item.repo)}[/b]  {escape(item.status)}"
+
+
+def _policy_choices() -> list[tuple[Choice, str]]:
+    return [(policy, policy.describe()) for policy in FilesPolicy]
+
+
+def _policy_header(item: Item) -> str:
+    conflicts = count(item.file_conflicts, "file")
+    return f"[b]{escape(item.repo)}[/b]  {conflicts} differ on both hosts"
 
 
 class PlanApp(App[bool]):
@@ -81,7 +107,7 @@ class PlanApp(App[bool]):
         self.refresh_title()
 
     def label(self, item: Item) -> str:
-        if item.choice is None:
+        if item.needs_decision:
             return "[b yellow]? decide[/]"
         text = escape(describe(item, self.plan.local.name, self.plan.remote.name))
         return f"[dim]{text}[/]" if item.choice is Action.SKIP else text
@@ -98,10 +124,25 @@ class PlanApp(App[bool]):
         key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
         return self.items[str(key.value)]
 
-    def choose(self, item: Item, action: Action | None) -> None:
-        if action is None:
+    def choose(self, item: Item, choice: Choice | None) -> None:
+        """Apply ``choice``, then ask about file conflicts too if it is still open.
+
+        A row with conflicting files is asked twice: once for the git
+        action, once for the :class:`~gitpair.plan.FilesPolicy`, chained
+        through this method's own callback.
+        """
+        if choice is None:
             return
-        item.choice = action
+        if isinstance(choice, Action):
+            item.choice = choice
+        else:
+            item.files_policy = choice
+        if isinstance(choice, Action) and item.needs_decision:
+            self.push_screen(
+                ChoiceScreen(_policy_header(item), _policy_choices()),
+                lambda answer: self.choose(item, answer),
+            )
+            return
         self.query_one(DataTable).update_cell(item.repo, "Action", self.label(item))
         self.refresh_title()
 
@@ -109,7 +150,8 @@ class PlanApp(App[bool]):
         item = self.items[str(event.row_key.value)]
         if len(item.options) > 1:
             self.push_screen(
-                ChoiceScreen(item, self.plan), lambda action: self.choose(item, action)
+                ChoiceScreen(_action_header(item), _action_choices(item, self.plan)),
+                lambda choice: self.choose(item, choice),
             )
 
     def action_skip(self) -> None:

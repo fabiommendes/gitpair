@@ -4,18 +4,30 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
-from gitpair._decide import decide, describe
+from gitpair._decide import count, decide, describe, resolved_files
 from gitpair._facts import ORIGIN_TIMEOUT, gather, origin_env, origin_state, peer_ref
-from gitpair._model import NO_CHANGE, Action, Extra, Item, Plan, RepoState, Step
+from gitpair._model import (
+    NO_CHANGE,
+    Action,
+    Extra,
+    FilesPolicy,
+    Item,
+    Plan,
+    RepoState,
+    Step,
+)
 from gitpair.config import Config
 from gitpair.hosts import Host
 
 __all__ = [
     "build",
     "describe",
+    "count",
+    "resolved_files",
     #: Enums
     "Action",
     "Step",
+    "FilesPolicy",
     #: Dataclasses
     "RepoState",
     "Extra",

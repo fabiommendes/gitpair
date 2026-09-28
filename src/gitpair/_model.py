@@ -16,7 +16,7 @@ class Action(StrEnum):
     """A git action, or the lack of one, offered for a repository."""
 
     SKIP = "skip"
-    KEEP = "keep"
+    NONE = "none"
     PULL = "pull"
     PUSH = "push"
     MERGE = "merge"
@@ -38,7 +38,7 @@ class Action(StrEnum):
 
 _DESCRIPTIONS = {
     Action.SKIP: "skip for now",
-    Action.KEEP: "commits already in sync",
+    Action.NONE: "no git changes",
     Action.PULL: "fast-forward {local} from {remote}",
     Action.PUSH: "fast-forward {remote} from {local}",
     Action.MERGE: "merge {remote} into {local}, then fast-forward {remote}",
@@ -52,6 +52,32 @@ _DESCRIPTIONS = {
 
 #: Actions that change nothing in either repository.
 NO_CHANGE = {Action.SKIP, Action.IGNORE}
+
+
+class FilesPolicy(StrEnum):
+    """How to handle conflicting :attr:`Item.file_conflicts`.
+
+    A conflict is an ignored file present on both hosts with a different
+    mtime. It is never copied until this policy is chosen, either by the
+    user or, in ``--auto``, forced to :attr:`SKIP_CONFLICTS`.
+    """
+
+    NEWER_WINS = "newer-wins"
+    SKIP_CONFLICTS = "skip-conflicts"
+
+    def describe(self) -> str:
+        """Human-readable label for this policy.
+
+        >>> FilesPolicy.NEWER_WINS.describe()
+        'newer wins'
+        """
+        return _FILES_POLICY_DESCRIPTIONS[self]
+
+
+_FILES_POLICY_DESCRIPTIONS = {
+    FilesPolicy.NEWER_WINS: "newer wins",
+    FilesPolicy.SKIP_CONFLICTS: "skip conflicting files",
+}
 
 
 @dataclass(frozen=True)
@@ -98,9 +124,10 @@ class Extra:
 class Item:
     """The decision for one repository: its state and the chosen action.
 
-    Every field but ``choice`` is set once, when :mod:`gitpair._decide`
-    builds the item. ``choice`` starts as ``None`` for items that need a
-    decision and is mutated by the TUI as the user answers questions.
+    Every field but ``choice`` and ``files_policy`` is set once, when
+    :mod:`gitpair._decide` builds the item. Both start as ``None`` for
+    items that need a decision and are mutated by the TUI as the user
+    answers questions.
     """
 
     repo: str
@@ -115,11 +142,21 @@ class Item:
     behind: int = 0
     comparable: bool = False
     extras: list[Extra] = field(default_factory=list)
+    file_conflicts: list[str] = field(default_factory=list)
+    files_policy: FilesPolicy | None = None
 
     @property
     def needs_decision(self) -> bool:
-        """True when nothing has been chosen for this item yet."""
-        return self.choice is None
+        """True while the git action, or the policy for its file conflicts, is open.
+
+        A chosen :attr:`~Action.SKIP` never runs extras, so a pending
+        ``files_policy`` does not matter for it.
+        """
+        if self.choice is None:
+            return True
+        if self.choice is Action.SKIP:
+            return False
+        return bool(self.file_conflicts) and self.files_policy is None
 
     @property
     def branch(self) -> str | None:

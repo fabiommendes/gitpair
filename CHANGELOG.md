@@ -19,10 +19,27 @@ All notable changes to this project are documented here. The format follows
 - Track and ignore decisions written back to the config and copied to the
   other host.
 - Per-repository options in `[repo."<path>"]` tables:
-  - `sync_ignored`: copy gitignored files and directories between hosts, newer
-    file wins, deletions are not propagated.
+  - `sync_ignored`: copy gitignored files and directories between hosts,
+    deletions are not propagated.
   - `autopush`: fast-forward `origin` after syncing, never forcing. Global
     default in `settings.autopush`.
+- Config values are now type-checked on load (`depth` an int, `push_config`,
+  `autopush` and per-repo `autopush` booleans, `sync_ignored` a list of
+  strings, host tables with string fields); a wrong type raises `ConfigError`
+  naming the key.
+
+### Changed
+
+- `sync_ignored`: a file present on both hosts with a different size or
+  mtime is now a conflict and asks before copying, instead of always copying
+  the newer one. The choices are "newer wins" (the previous behavior) or
+  skip the conflicting files; the one-sided copies stay automatic. `--auto`
+  skips conflicts and still runs the safe part.
+- `Action.KEEP` is renamed to `Action.NONE` ("no git changes"), to make clear
+  that only the extra steps (copying files, pushing to origin) run for it.
+- Clarified that `gitpair plan` fetches into `refs/gitpair/*` and updates
+  `FETCH_HEAD`; it does not touch branches, work trees, uncommitted files or
+  `origin` (the README used to say it changes nothing at all).
 
 ### Fixed
 

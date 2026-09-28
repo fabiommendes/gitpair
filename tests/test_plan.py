@@ -13,28 +13,32 @@ from gitpair.plan import Action, Extra, Item, Step, describe, origin_env
 def test_compare_files_every_name_lands_in_one_bucket_or_matches():
     here = {"a": [1, 100], "b": [2, 200], "same": [3, 300], "only_here": [4, 400]}
     there = {"a": [1, 50], "b": [2, 250], "same": [3, 300], "only_there": [5, 500]}
-    to_there, to_here, clashes = compare_files(here, there)
+    to_there, to_here, conflicts, clashes = compare_files(here, there)
     assert to_there == ["a", "only_here"]
     assert to_here == ["b", "only_there"]
+    assert conflicts == ["a", "b"]
     assert clashes == []
 
 
 def test_compare_files_same_mtime_different_content_is_a_clash():
     here = {"x": [10, 1000]}
     there = {"x": [20, 1000]}
-    to_there, to_here, clashes = compare_files(here, there)
-    assert (to_there, to_here, clashes) == ([], [], ["x"])
+    to_there, to_here, conflicts, clashes = compare_files(here, there)
+    assert (to_there, to_here, conflicts, clashes) == ([], [], [], ["x"])
 
 
 def test_compare_files_identical_entries_are_skipped():
     here = {"x": [10, 1000]}
     there = {"x": [10, 1000]}
-    assert compare_files(here, there) == ([], [], [])
+    assert compare_files(here, there) == ([], [], [], [])
 
 
 def test_compare_files_missing_on_one_side_always_copies():
-    assert compare_files({"a": [1, 1]}, {}) == (["a"], [], [])
-    assert compare_files({}, {"a": [1, 1]}) == ([], ["a"], [])
+    assert compare_files({"a": [1, 1]}, {}) == (["a"], [], [], [])
+    assert compare_files({}, {"a": [1, 1]}) == ([], ["a"], [], [])
+    # missing on one side is never a conflict, even when both are present elsewhere
+    to_there, to_here, conflicts, clashes = compare_files({"a": [1, 1]}, {"b": [1, 1]})
+    assert conflicts == []
 
 
 def test_origin_env_keeps_core_ssh_command(tmp_path):
@@ -80,11 +84,8 @@ def test_describe_names_the_two_hosts():
 
 def test_describe_appends_extra_step_descriptions():
     extras = [Extra(Step.FILES_THERE, "copy 1 file to there")]
-    item = make_item(Action.KEEP, extras)
-    assert (
-        describe(item, "here", "there")
-        == "commits already in sync + copy 1 file to there"
-    )
+    item = make_item(Action.NONE, extras)
+    assert describe(item, "here", "there") == "no git changes + copy 1 file to there"
 
 
 def test_describe_skip_ignores_extras():

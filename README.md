@@ -64,9 +64,16 @@ pipx install gitpair
 4. Run it:
 
    ```sh
-   gitpair plan   # show what would happen, change nothing
+   gitpair plan   # show what would happen; never touches branches, work
+                  # trees, uncommitted files or origin (see below)
    gitpair        # review the plan in the terminal UI and apply it
    ```
+
+`gitpair plan` never touches branches, work trees, uncommitted files or
+`origin`. It does fetch each repository's peer branch into
+`refs/gitpair/<host>/<branch>` and update `FETCH_HEAD`, which is how it
+counts commits ahead/behind; see
+[docs/how-it-works.md](docs/how-it-works.md).
 
 In the terminal UI, press `enter` on a row to answer its question, `a` to accept
 the first option, `s` to skip, `x` to run the plan and `q` to quit without
@@ -101,8 +108,13 @@ autopush = true                            # push to origin when it is behind
 
 - `sync_ignored` copies files that git ignores (secrets, local data, build
   caches you do not want to rebuild) between the hosts. A file missing on one
-  side is copied there; a file present on both sides is replaced by the newer
-  copy. Deleted files are never deleted on the other host.
+  side is copied there automatically. A file present on both sides with a
+  different size or mtime is a conflict: gitpair asks, offering "newer wins"
+  (copy each conflicting file in the direction of the newer mtime) or skip
+  the conflicting files (the one-sided files are still copied). In `--auto`,
+  conflicts are skipped and the one-sided copies still run. Same mtime but a
+  different size is only a warning; it is never copied. Deleted files are
+  never deleted on the other host.
 - `autopush` pushes the synced branch to `origin` when origin is behind. It
   never forces: if origin has diverged, gitpair reports it and does nothing.
 

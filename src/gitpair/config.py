@@ -155,8 +155,10 @@ def load(path: Path = DEFAULT_PATH) -> Config:
 
     Raises:
         ConfigError: the file does not exist, is not valid TOML, declares
-            fewer than two hosts, a host has no ``ssh`` destination, or a
-            ``sync_ignored`` entry escapes the repository.
+            fewer than two hosts, a host has no ``ssh`` destination, a
+            ``sync_ignored`` entry escapes the repository, or a value has
+            the wrong type (see :mod:`gitpair.config`'s module docstring for
+            the shape every key must have).
     """
     if not path.exists():
         raise ConfigError(f"config file not found: {path}")
@@ -166,8 +168,12 @@ def load(path: Path = DEFAULT_PATH) -> Config:
         raise ConfigError(f"invalid TOML in {path}: {error}") from None
     hosts = {}
     for name, data in doc.get("hosts", {}).items():
+        _check_table(data, f"hosts.{name}")
         if "ssh" not in data:
             raise ConfigError(f"host {name!r} has no 'ssh' destination")
+        for key in ("ssh", "hostname", "root"):
+            if key in data:
+                _check_str(data[key], f"hosts.{name}.{key}")
         hosts[name] = HostConfig(
             name=name,
             hostname=data.get("hostname", name),
@@ -178,14 +184,23 @@ def load(path: Path = DEFAULT_PATH) -> Config:
         raise ConfigError("the config must declare at least two hosts")
     repos = doc.get("repos", {})
     settings = doc.get("settings", {})
+    track = repos.get("track", [])
+    _check_str_list(track, "repos.track")
+    ignore = repos.get("ignore", [])
+    _check_str_list(ignore, "repos.ignore")
+    depth = settings.get("depth", 3)
+    _check_int(depth, "settings.depth")
+    push_config = settings.get("push_config", True)
+    _check_bool(push_config, "settings.push_config")
     autopush = settings.get("autopush", False)
+    _check_bool(autopush, "settings.autopush")
     return Config(
         path=path,
         hosts=hosts,
-        track=list(repos.get("track", [])),
-        ignore=list(repos.get("ignore", [])),
-        depth=settings.get("depth", 3),
-        push_config=settings.get("push_config", True),
+        track=list(track),
+        ignore=list(ignore),
+        depth=depth,
+        push_config=push_config,
         autopush=autopush,
         repo_options={
             repo: _repo_options(repo, data, autopush)
@@ -238,7 +253,9 @@ def config_path() -> Path:
 
 
 def _repo_options(repo: str, data: dict, autopush: bool) -> RepoOptions:
+    _check_table(data, f'repo."{repo}"')
     entries = data.get("sync_ignored", [])
+    _check_str_list(entries, f'repo."{repo}".sync_ignored')
     for entry in entries:
         parts = PurePosixPath(entry).parts
         if not entry or entry.startswith("/") or ".." in parts or ".git" in parts:
@@ -246,7 +263,39 @@ def _repo_options(repo: str, data: dict, autopush: bool) -> RepoOptions:
                 f"repo {repo!r}: sync_ignored entries must be relative paths "
                 f"inside the repository, got {entry!r}"
             )
+    if "autopush" in data:
+        _check_bool(data["autopush"], f'repo."{repo}".autopush')
     return RepoOptions(
         sync_ignored=tuple(entry.rstrip("/") for entry in entries),
         autopush=data.get("autopush", autopush),
     )
+
+
+def _check_table(value: object, key: str, /) -> None:
+    """Raise :class:`ConfigError` naming ``key`` unless ``value`` is a table."""
+    if not isinstance(value, dict):
+        raise ConfigError(f"{key} must be a table, got {value!r}")
+
+
+def _check_str(value: object, key: str, /) -> None:
+    """Raise :class:`ConfigError` naming ``key`` unless ``value`` is a string."""
+    if not isinstance(value, str):
+        raise ConfigError(f"{key} must be a string, got {value!r}")
+
+
+def _check_int(value: object, key: str, /) -> None:
+    """Raise :class:`ConfigError` naming ``key`` unless ``value`` is an integer."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(f"{key} must be an integer, got {value!r}")
+
+
+def _check_bool(value: object, key: str, /) -> None:
+    """Raise :class:`ConfigError` naming ``key`` unless ``value`` is a boolean."""
+    if not isinstance(value, bool):
+        raise ConfigError(f"{key} must be a boolean, got {value!r}")
+
+
+def _check_str_list(value: object, key: str, /) -> None:
+    """Raise :class:`ConfigError` naming ``key`` unless it is a list of strings."""
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ConfigError(f"{key} must be a list of strings, got {value!r}")

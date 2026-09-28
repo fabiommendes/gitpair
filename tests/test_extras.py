@@ -9,7 +9,7 @@ from conftest import World, commit, git
 
 from gitpair import config as cfg
 from gitpair import session
-from gitpair.plan import Action, Item, Plan, Step
+from gitpair.plan import Action, FilesPolicy, Item, Plan, Step
 
 GITIGNORE = "storage/\n.env\n"
 
@@ -50,11 +50,14 @@ def test_ignored_files_are_copied_both_ways_newest_wins(files_world: World):
 
     plan = files_world.plan()
     item = only(plan)
-    assert item.choice is Action.KEEP
+    assert item.choice is Action.NONE
     assert [(e.step, e.files) for e in item.extras] == [
         (Step.FILES_THERE, [".env", "storage/a.txt"]),
         (Step.FILES_HERE, ["storage/b/c.txt", "storage/shared.txt"]),
     ]
+    assert item.file_conflicts == ["storage/shared.txt"]
+    assert item.needs_decision
+    item.files_policy = FilesPolicy.NEWER_WINS  # explicit: conflicts need a choice
 
     outcome = run(files_world, plan)
     assert not outcome.failed
@@ -65,6 +68,41 @@ def test_ignored_files_are_copied_both_ways_newest_wins(files_world: World):
         assert (side / ".env").read_text() == "SECRET=1"
     assert (here / "storage/shared.txt").stat().st_mtime == 2000
     assert files_world.plan().pending == []
+
+
+def test_conflicting_file_asks_and_is_not_copied_by_default(files_world: World):
+    here, there = files_world.here / "app", files_world.there / "app"
+    write(here / "storage/shared.txt", "old", 1000)
+    write(there / "storage/shared.txt", "new", 2000)
+
+    plan = files_world.plan()
+    item = only(plan)
+    assert item.file_conflicts == ["storage/shared.txt"]
+    assert item.files_policy is None
+    assert item.needs_decision
+
+    outcome = run(files_world, plan)  # files_policy left undecided
+    assert not outcome.failed
+    assert (here / "storage/shared.txt").read_text() == "old"
+    assert (there / "storage/shared.txt").read_text() == "new"
+
+
+def test_skip_conflicts_policy_copies_only_the_one_sided_files(files_world: World):
+    here, there = files_world.here / "app", files_world.there / "app"
+    write(here / "storage/a.txt", "a", 1000)
+    write(here / "storage/shared.txt", "old", 1000)
+    write(there / "storage/shared.txt", "new", 2000)
+
+    plan = files_world.plan()
+    item = only(plan)
+    assert item.file_conflicts == ["storage/shared.txt"]
+    item.files_policy = FilesPolicy.SKIP_CONFLICTS
+
+    outcome = run(files_world, plan)
+    assert not outcome.failed
+    assert (there / "storage/a.txt").read_text() == "a"
+    assert (here / "storage/shared.txt").read_text() == "old"
+    assert (there / "storage/shared.txt").read_text() == "new"
 
 
 def test_ignored_files_are_copied_after_fast_forward(files_world: World):
@@ -107,7 +145,7 @@ def test_missing_file_between_plan_and_apply_does_not_abort_the_run(world: World
     plan = world.plan()
     app_item = next(i for i in plan.pending if i.repo == "app")
     other_item = next(i for i in plan.pending if i.repo == "other")
-    assert app_item.choice is Action.KEEP
+    assert app_item.choice is Action.NONE
     assert [e.step for e in app_item.extras] == [Step.FILES_THERE]
     other_item.choice = Action.PULL
 
@@ -164,7 +202,7 @@ def test_autopush_pushes_synced_commits_to_origin(world: World, origin: Path):
 
     plan = world.plan()
     item = only(plan)
-    assert item.choice is Action.KEEP
+    assert item.choice is Action.NONE
     assert [e.step for e in item.extras] == [Step.ORIGIN]
 
     assert not run(world, plan).failed
@@ -243,7 +281,7 @@ def test_autopush_works_without_a_fetch_refspec(world: World):
 
     plan = world.plan()
     item = only(plan)
-    assert item.choice is Action.KEEP
+    assert item.choice is Action.NONE
     assert [e.step for e in item.extras] == [Step.ORIGIN]
 
     assert not run(world, plan).failed

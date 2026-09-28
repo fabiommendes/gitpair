@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 from conftest import FakeRemote, World, commit, git
 
 from gitpair import cli, session
 from gitpair import config as cfg
 from gitpair.hosts import Host
+
+
+def write(path: Path, content: str, mtime: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    os.utime(path, (mtime, mtime))
 
 
 @pytest.fixture
@@ -44,6 +53,21 @@ def test_sync_auto_applies_safe_actions_and_skips_questions(cli_world: World, ca
     assert git(cli_world.there / "app", "rev-parse", "HEAD") == head
     assert "1 done, 0 failed" in capsys.readouterr().out
     assert "unknown" not in config.path.read_text()
+
+
+def test_sync_auto_skips_conflicts_but_copies_one_sided_files(cli_world: World, capsys):
+    cli_world.extra_config = '\n[repo.app]\nsync_ignored = ["storage"]\n'
+    cli_world.repo("app", gitignore="storage/\n")
+    here, there = cli_world.here / "app", cli_world.there / "app"
+    write(here / "storage/a.txt", "a", 1000)
+    write(here / "storage/shared.txt", "old", 1000)
+    write(there / "storage/shared.txt", "new", 2000)
+    config = cli_world.config()
+
+    assert cli.main(["--config", str(config.path), "sync", "--auto"]) == 0
+    assert (there / "storage/a.txt").read_text() == "a"
+    assert (here / "storage/shared.txt").read_text() == "old"
+    assert (there / "storage/shared.txt").read_text() == "new"
 
 
 @pytest.mark.parametrize(

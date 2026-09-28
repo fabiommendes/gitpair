@@ -21,7 +21,14 @@ from gitpair._facts import (
     gather,
 )
 from gitpair.hosts import Host
-from gitpair.plan import Action, Extra, RepoState, Step
+from gitpair.plan import (
+    Action,
+    FilesPolicy,
+    RepoState,
+    Step,
+    describe,
+    resolved_files,
+)
 
 HERE, THERE = "here", "there"
 
@@ -315,7 +322,7 @@ def test_sync_ignored_manifest_failure_is_reported():
     assert item.extras == []
 
 
-def test_sync_ignored_diffs_are_copied_and_flip_to_keep():
+def test_sync_ignored_conflict_needs_a_files_policy():
     facts = RepoFacts(
         "app",
         state(),
@@ -326,10 +333,75 @@ def test_sync_ignored_diffs_are_copied_and_flip_to_keep():
         ),
     )
     item = build(facts)
-    assert item.choice is Action.KEEP
-    assert item.options == [Action.KEEP, Action.SKIP]
+    # the git action is safe and auto-decided; only the conflict is open
+    assert item.choice is Action.NONE
+    assert item.options == [Action.NONE, Action.SKIP]
     assert not item.in_sync
-    assert item.extras == [Extra(Step.FILES_THERE, "copy 1 file to there", ["a"])]
+    assert item.file_conflicts == ["a"]
+    assert item.files_policy is None
+    assert item.needs_decision
+    assert "1 conflict" in item.status
+    # undecided behaves like skip: the conflict is not copied by default
+    assert resolved_files(item, item.extras[0]) == []
+
+
+def test_sync_ignored_one_sided_file_is_not_a_conflict():
+    facts = RepoFacts(
+        "app",
+        state(),
+        state(),
+        CompareFacts(CompareOutcome.IN_SYNC),
+        extras=ExtrasFacts(
+            ignored_files=IgnoredFilesFacts(
+                here={"a": [1, 100], "only_here": [1, 1]}, there={"a": [1, 50]}
+            )
+        ),
+    )
+    item = build(facts)
+    assert item.file_conflicts == ["a"]
+    assert [e.files for e in item.extras] == [["a", "only_here"]]
+
+
+def test_newer_wins_policy_copies_the_conflicting_file():
+    facts = RepoFacts(
+        "app",
+        state(),
+        state(),
+        CompareFacts(CompareOutcome.IN_SYNC),
+        extras=ExtrasFacts(
+            ignored_files=IgnoredFilesFacts(here={"a": [1, 100]}, there={"a": [1, 50]})
+        ),
+    )
+    item = build(facts)
+    item.files_policy = FilesPolicy.NEWER_WINS
+    assert not item.needs_decision
+    extra = item.extras[0]
+    assert resolved_files(item, extra) == ["a"]
+    assert describe(item, HERE, THERE) == (
+        "no git changes + copy 1 file to there + 1 conflict: newer wins"
+    )
+
+
+def test_skip_conflicts_policy_drops_the_conflicting_file():
+    facts = RepoFacts(
+        "app",
+        state(),
+        state(),
+        CompareFacts(CompareOutcome.IN_SYNC),
+        extras=ExtrasFacts(
+            ignored_files=IgnoredFilesFacts(
+                here={"a": [1, 100], "only_here": [1, 1]}, there={"a": [1, 50]}
+            )
+        ),
+    )
+    item = build(facts)
+    item.files_policy = FilesPolicy.SKIP_CONFLICTS
+    assert not item.needs_decision
+    extra = item.extras[0]
+    assert resolved_files(item, extra) == ["only_here"]
+    assert describe(item, HERE, THERE) == (
+        "no git changes + copy 1 file to there + 1 conflict: skip conflicting files"
+    )
 
 
 def test_sync_ignored_identical_files_stay_in_sync():
@@ -388,7 +460,7 @@ def test_origin_behind_schedules_push_and_flips_to_keep():
         extras=ExtrasFacts(origin=OriginFacts(checked=True, state="behind")),
     )
     item = build(facts)
-    assert item.choice is Action.KEEP
+    assert item.choice is Action.NONE
     assert [e.step for e in item.extras] == [Step.ORIGIN]
     assert not item.in_sync
 
