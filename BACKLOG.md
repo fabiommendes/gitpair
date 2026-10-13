@@ -7,50 +7,32 @@ relatedTo: [gitpair]
 
 # Backlog
 
-Unscheduled work and known limitations. Items are grouped by topic, not by
-priority. Move items to [ROADMAP.md](ROADMAP.md) when they get a release.
+Trabalho sem data e limitações conhecidas. Os itens são agrupados por assunto, não por prioridade. Mova os itens para [ROADMAP.md](ROADMAP.md) quando receberem uma versão.
 
-## Known limitations
+## Limitações conhecidas
 
-* [ ] Only the checked out branch is compared. Other branches are ignored
-  unless the repository is cloned.
-* [ ] Different branches checked out on each host are reported and skipped.
-  Could offer to check out the same branch on one side.
-* [ ] When the remote config differs from the local one, gitpair refuses to
-  overwrite it and asks the user to copy it by hand. A three-way merge of the
-  `repos` lists would remove most of these cases.
-* [ ] More than two hosts are supported only pairwise (`--remote`). There is no
-  "sync all hosts" mode.
-* [ ] `clone-there` needs git 2.28+ on the remote (`git init --initial-branch`).
+* [ ] Só o branch atual é comparado. Os demais branches são ignorados, a menos que o repositório seja clonado.
+* [ ] Branches diferentes em cada máquina são informados e pulados. Poderia oferecer o checkout do mesmo branch em um dos lados.
+* [ ] Quando a configuração remota é diferente da local, o gitpair se recusa a sobrescrevê-la e pede ao usuário que a copie à mão. Um merge de três vias das listas `repos` eliminaria a maioria desses casos.
+* [ ] Mais de duas máquinas são suportadas apenas em pares (`--remote`). Não existe modo "sincronizar todas as máquinas".
+* [ ] `clone-there` precisa de git 2.28+ na máquina remota (`git init --initial-branch`).
 
-* [ ] Ignored files: deletions are not propagated, and conflicts are decided
-  by mtime only. A per-host record of the last synced manifest would allow
-  real deletions and conflict detection.
-* [ ] Ignored files of a repository are only copied from the second run after
-  it is cloned to a host.
-* [ ] `autopush` pushes from the local host only. If only the remote has
-  credentials for origin, it fails.
-* [ ] No lock against two runs happening on both hosts at the same time: the
-  forced push to `refs/gitpair/incoming/<branch>` can collide.
+* [ ] Arquivos ignorados: exclusões não são propagadas, e conflitos são decididos só pelo mtime. Um registro por máquina do último manifesto sincronizado permitiria exclusões reais e detecção de conflitos.
+* [ ] Os arquivos ignorados de um repositório só são copiados a partir da segunda execução, depois que ele é clonado em uma máquina.
+* [ ] `autopush` faz push só a partir da máquina local. Se só a máquina remota tiver credenciais para o origin, ele falha.
+* [ ] Não há lock contra duas execuções ao mesmo tempo nas duas máquinas: o push forçado para `refs/gitpair/incoming/<branch>` pode colidir.
 
-## Testing
+## Testes
 
-* [ ] `RemoteHost` is only unit-tested. Add an optional integration test that
-  runs against `ssh localhost` when `GITPAIR_SSH_TEST=1` is set.
+* [ ] `RemoteHost` só tem testes unitários. Adicione um teste de integração opcional que rode contra `ssh localhost` quando `GITPAIR_SSH_TEST=1` estiver definido.
 
 ## UI
 
-* [ ] Show the commit list (`git log --oneline`) of the incoming commits in the
-  question dialog.
-* [ ] Show in-sync repositories behind a toggle.
-* [ ] The "copy N files" text in an extra step is computed before the files
-  policy is chosen, so with `skip conflicting files` it can count files that
-  are not copied. Compute the description from `resolved_files` instead.
+* [ ] Mostre a lista de commits (`git log --oneline`) dos commits recebidos no diálogo de pergunta.
+* [ ] Mostre os repositórios sincronizados atrás de um alternador.
+* [ ] O texto "copy N files" de um passo extra é calculado antes de a política de arquivos ser escolhida. Por isso, com `skip conflicting files`, ele pode contar arquivos que não são copiados. Calcule a descrição a partir de `resolved_files`.
 
-## From the 2026-09-28 review
+## Da revisão de 2026-09-28
 
-* [ ] Optional integration test against `ssh localhost` behind an environment
-  variable, so `run_binary`, `host:/path` URLs and the config copy run through
-  the real ssh path in CI-like conditions (review item T4).
-* [ ] Decide whether the project needs a `docs` task (doc-zero) or the README
-  plus `docs/` are enough (review item P5).
+* [ ] Teste de integração opcional contra `ssh localhost`, atrás de uma variável de ambiente, para que `run_binary`, as URLs `host:/path` e a cópia da configuração passem pelo caminho ssh real, em condições parecidas com as do CI (item T4 da revisão).
+* [ ] Decida se o projeto precisa de uma tarefa `docs` (doc-zero) ou se o README mais `docs/` bastam (item P5 da revisão).

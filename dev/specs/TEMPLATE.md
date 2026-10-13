@@ -5,31 +5,28 @@ tags: []
 relatedTo: [gitpair]
 ---
 
-# Feature name
+# Nome da funcionalidade
 
-## Problem
+## Problema
 
-What the user cannot do today, with a concrete example.
+O que o usuário não consegue fazer hoje, com um exemplo concreto.
 
-## Behavior
+## Comportamento
 
-What gitpair does after the change: CLI flags, config keys, UI changes, new
-actions. Include the plan output or UI text the user will see.
+O que o gitpair faz depois da mudança: flags da CLI, chaves de configuração, mudanças na UI, novas ações. Inclua a saída do plan ou o texto da UI que o usuário vai ver.
 
-## Git commands
+## Comandos git
 
-The exact commands run on each host. State which refs are created or moved and
-how the change is undone if interrupted.
+Os comandos exatos executados em cada máquina. Diga quais refs são criadas ou movidas e como desfazer a mudança se ela for interrompida.
 
-## Safety
+## Segurança
 
-Can this lose commits or uncommitted work? If yes, how does the user opt in and
-where is the backup?
+Isso pode perder commits ou trabalho não commitado? Se sim, como o usuário autoriza a ação e onde fica o backup?
 
-## Tests
+## Testes
 
-Scenarios to cover with the `World` fixture.
+Cenários a cobrir com a fixture `World`.
 
-## Out of scope
+## Fora de escopo
 
-What this spec deliberately does not handle.
+O que esta especificação deliberadamente não trata.

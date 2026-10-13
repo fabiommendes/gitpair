@@ -1,114 +1,87 @@
 # gitpair
 
-gitpair is a CLI that keeps the git repositories of two machines in sync over
-ssh. It scans both hosts, builds a plan, applies safe fast-forwards on its own
-and asks the user about everything else in a Textual UI. The config file is
-shared by both hosts; the local host is detected at runtime.
+gitpair é uma CLI que mantém sincronizados os repositórios git de duas máquinas, via ssh. Ela analisa as duas máquinas, monta um plan e aplica sozinha os fast-forwards seguros. Para o resto, pergunta ao usuário em uma TUI feita com Textual. O arquivo de configuração é compartilhado pelas duas máquinas; a máquina local é detectada em tempo de execução.
 
-Read `README.md` for user-facing behavior and `docs/how-it-works.md` for the git
-commands behind each action before changing anything in `plan.py` or
-`execute.py`.
+Leia `README.md` para o comportamento visível ao usuário e `docs/how-it-works.md` para os comandos git de cada ação, antes de mudar qualquer coisa em `plan.py` ou `execute.py`.
 
-## Working with the human
+## Idioma
 
-- Be direct and brief. Bullet points over paragraphs. Prefix bullets with an
-  identifier (`D1`, `D2`) when you list decisions so they are easy to answer.
-- Show at most three open decisions at a time.
-- Decide small, reversible things yourself and state the decision in one line.
-  Ask only when a choice is hard to undo: config format changes, new refs
-  written to users' repositories, anything that can lose commits or work.
-- Do not praise ideas. Point out problems.
+Nível 2 (aplicativo público), conforme `~/git/tools/tooling-root/dev/adr/0002-idioma-dos-repositorios.md`:
 
-## Writing style
+- Em inglês: código, comentários, docstrings, mensagens da CLI e de erro,
+  `README.md`, a documentação de usuário em `docs/`, `CHANGELOG.md`,
+  `CONTRIBUTING.md`, `ROADMAP.md`, `GLOSSARY.md` e mensagens de commit.
+- Em português (pt-BR): este arquivo, `BACKLOG.md`, tudo em `dev/`, as ADRs e
+  as issues.
 
-User-facing text (README, docs, CLI messages, docstrings) is in English, in
-plain language. No marketing words, no emojis, no em-dashes. Say what the tool
-does, not how great it is.
+## Trabalhando com o humano
 
-## Project layout
+- Seja direto e breve. Prefira marcadores a parágrafos. Coloque um identificador (`D1`, `D2`) no início de cada marcador ao listar decisões, para facilitar a resposta.
+- Mostre no máximo três decisões em aberto por vez.
+- Decida sozinho as coisas pequenas e reversíveis e diga a decisão em uma linha. Pergunte só quando a escolha for difícil de desfazer: mudança no formato da configuração, novas refs gravadas nos repositórios dos usuários, ou qualquer coisa que possa perder commits ou trabalho.
+- Não elogie ideias. Aponte problemas.
 
-| Path                         | Description                                                           |
-| :--------------------------- | :-------------------------------------------------------------------- |
-| `README.md`                  | User documentation and quick start.                                   |
-| `docs/`                      | Longer user documentation: configuration and internals.               |
-| `examples/config.toml`       | Complete config example. Keep it valid; tests may load it.            |
-| `CHANGELOG.md`               | User-visible changes, Keep a Changelog format.                        |
-| `ROADMAP.md`                 | Planned releases and their scope.                                     |
-| `BACKLOG.md`                 | Unscheduled ideas, known limitations and small issues.                |
-| `GLOSSARY.md`                | Project vocabulary. Use these terms in code and docs.                 |
-| `dev/specs/`                 | Feature specs, written before non-trivial implementation.             |
-| `dev/issues/`                | Bugs that need more than a quick fix. Delete once fixed.              |
-| `src/gitpair/config.py`      | Load and update the shared TOML config; detect local and remote host. |
-| `src/gitpair/scanner.py`     | Finds repositories and reports their state. Runs on both hosts.       |
-| `src/gitpair/hosts.py`       | `Host` runs commands locally; `RemoteHost` wraps them in ssh.         |
-| `src/gitpair/plan.py`        | Public plan API: `build`, `describe`, the enums and dataclasses.      |
-| `src/gitpair/_model.py`      | Private. `Action`, `Item`, `Plan`, `RepoState`, `Extra`, `Step`.       |
-| `src/gitpair/_facts.py`      | Private. Gathers plan facts: all the host I/O, no decisions.          |
-| `src/gitpair/_decide.py`     | Private. Turns facts into `Item`s: pure, no host access.               |
-| `src/gitpair/execute.py`     | Git commands for each `Action`.                                       |
-| `src/gitpair/session.py`     | One run: connect, apply the plan, save track/ignore decisions.        |
-| `src/gitpair/tui.py`         | Textual app to review the plan and answer questions.                  |
-| `src/gitpair/cli.py`         | argparse entry point and Rich output.                                 |
-| `tests/conftest.py`          | `World` fixture: two fake hosts in a temp dir, no ssh needed.         |
+## Estilo de escrita
 
-## Rules that are easy to break
+O texto voltado ao usuário (README, docs, mensagens da CLI, docstrings) fica em inglês, em linguagem simples. Sem palavras de marketing, sem emojis e sem travessões. Diga o que a ferramenta faz, não o quanto ela é boa.
 
-- `scanner.py` is piped to `python3 -` on the remote. Standard library only,
-  must run on Python 3.7, no imports from `gitpair`.
-- Every command that reaches the remote goes through `Host.run`, which quotes
-  arguments with `shlex.join`. Never build a shell string from repository
-  names, branch names or paths. `Host.shell` is only for fixed scripts built
-  from config values, and those must be quoted too.
-- The remote never connects back to the local host. Moving commits to the
-  remote uses a push to `refs/gitpair/incoming/<branch>` followed by a
-  fast-forward on the remote.
-- No action may lose commits or uncommitted work unless the user picked it in
-  the UI. This also covers ignored files: a conflicting one (present on both
-  hosts with a different mtime) is never copied without an explicit
-  `files_policy` choice, the same way a diverged branch is never reset
-  without an explicit `Action`. Destructive actions save the old HEAD in
-  `refs/gitpair/backup/`. `--auto` only runs actions that `plan.py` marked as
-  automatic, and treats an undecided `files_policy` as `SKIP_CONFLICTS`.
-- Repositories not in `repos.track` always need a decision, even when the sync
-  itself would be automatic.
-- Ignored files are copied with `tar` over ssh, never with rsync, which is not
-  installed everywhere. Files from the remote are extracted with
-  `tarfile`'s `data` filter; do not remove it.
-- Commands that talk to `origin` run with `ORIGIN_ENV` and `ORIGIN_TIMEOUT`
-  (`plan.py`): no prompts, English messages, bounded time. Never force-push
-  to origin.
-- Rich and Textual parse `[...]` as markup. Escape any text that comes from git
-  or the filesystem (`rich.markup.escape`).
+## Estrutura do projeto
 
-## Workflow
+| Caminho                      | Descrição                                                                 |
+| :--------------------------- | :------------------------------------------------------------------------ |
+| `README.md`                  | Documentação do usuário e início rápido.                                  |
+| `docs/`                      | Documentação de usuário mais longa: configuração e funcionamento interno. |
+| `examples/config.toml`       | Exemplo completo de configuração. Mantenha-o válido; os testes podem carregá-lo. |
+| `CHANGELOG.md`               | Mudanças visíveis ao usuário, no formato Keep a Changelog.                |
+| `ROADMAP.md`                 | Versões planejadas e o escopo de cada uma.                                |
+| `BACKLOG.md`                 | Ideias sem data, limitações conhecidas e problemas pequenos.              |
+| `GLOSSARY.md`                | Vocabulário do projeto. Use esses termos no código e nos docs.            |
+| `dev/specs/`                 | Especificações de funcionalidades, escritas antes de implementações não triviais. |
+| `dev/issues/`                | Bugs que precisam de mais que uma correção rápida. Apague-os depois de corrigidos. |
+| `src/gitpair/config.py`      | Carrega e atualiza a configuração TOML compartilhada; detecta a máquina local e a remota. |
+| `src/gitpair/scanner.py`     | Encontra repositórios e informa o estado de cada um. Roda nas duas máquinas. |
+| `src/gitpair/hosts.py`       | `Host` executa comandos localmente; `RemoteHost` os envolve em ssh.       |
+| `src/gitpair/plan.py`        | API pública do plan: `build`, `describe`, os enums e as dataclasses.      |
+| `src/gitpair/_model.py`      | Privado. `Action`, `Item`, `Plan`, `RepoState`, `Extra`, `Step`.          |
+| `src/gitpair/_facts.py`      | Privado. Reúne os fatos do plan: toda a I/O com as máquinas, sem decisões. |
+| `src/gitpair/_decide.py`     | Privado. Transforma fatos em `Item`s: puro, sem acesso às máquinas.       |
+| `src/gitpair/execute.py`     | Comandos git para cada `Action`.                                          |
+| `src/gitpair/session.py`     | Uma execução: conecta, aplica o plan, salva as decisões de track e ignore. |
+| `src/gitpair/tui.py`         | App Textual para revisar o plan e responder perguntas.                    |
+| `src/gitpair/cli.py`         | Ponto de entrada argparse e saída Rich.                                   |
+| `tests/conftest.py`          | Fixture `World`: duas máquinas falsas em um diretório temporário, sem ssh. |
 
-1. For non-trivial features, write a spec in `dev/specs/` first and agree on it
-   with the human. Small fixes can go straight to code.
-2. Write tests that exercise real git repositories through the `World`
-   fixture. Assert on repository state (HEAD, files, refs), not on internal
-   calls. Mocks are only acceptable for the ssh boundary.
-3. Implement.
-4. Run `uv run task format`, then `uv run task ci`. The task is not done while
-   `ci` fails. CI runs the same command.
-5. Add a `CHANGELOG.md` entry under `Unreleased` for user-visible changes and
-   update `README.md` or `docs/` if behavior changed.
-6. Remove finished items from `BACKLOG.md` or `ROADMAP.md`. Delete specs and
-   issues that are fully implemented; the changelog and git history keep the
-   record.
+## Regras fáceis de quebrar
 
-If you find a bug outside the task at hand, add it to `BACKLOG.md` (small) or
-`dev/issues/` (needs investigation) instead of fixing it silently.
+- `scanner.py` é enviado para `python3 -` na máquina remota. Use só a biblioteca padrão. Ele deve rodar no Python 3.7 e não importar nada de `gitpair`.
+- Todo comando que chega à máquina remota passa por `Host.run`, que escapa os argumentos com `shlex.join`. Nunca monte uma string de shell com nomes de repositórios, de branches ou caminhos. `Host.shell` só serve para scripts fixos montados a partir de valores da configuração, e esses valores também devem ser escapados.
+- A máquina remota nunca se conecta de volta à local. Para levar commits ao remoto, faça push para `refs/gitpair/incoming/<branch>` e depois um fast-forward no remoto.
+- Nenhuma ação pode perder commits ou trabalho não commitado, a menos que o usuário a tenha escolhido na UI. Isso vale também para arquivos ignorados: um arquivo em conflito (presente nas duas máquinas com mtime diferente) nunca é copiado sem uma escolha explícita de `files_policy`. Do mesmo modo, uma branch divergente nunca é resetada sem uma `Action` explícita. Ações destrutivas salvam o HEAD antigo em `refs/gitpair/backup/`. `--auto` só executa ações que `plan.py` marcou como automáticas e trata uma `files_policy` não decidida como `SKIP_CONFLICTS`.
+- Repositórios fora de `repos.track` sempre precisam de uma decisão, mesmo quando a sincronização seria automática.
+- Arquivos ignorados são copiados com `tar` via ssh, nunca com rsync, que não está instalado em todo lugar. Arquivos vindos da máquina remota são extraídos com o filtro `data` do `tarfile`; não o remova.
+- Comandos que falam com `origin` rodam com `ORIGIN_ENV` e `ORIGIN_TIMEOUT` (`plan.py`): sem prompts, mensagens em inglês, tempo limitado. Nunca faça force-push para o origin.
+- Rich e Textual interpretam `[...]` como markup. Escape todo texto vindo do git ou do sistema de arquivos (`rich.markup.escape`).
 
-## Commands
+## Fluxo de trabalho
 
-| Command                 | Action                                  |
+1. Em funcionalidades não triviais, escreva antes uma especificação em `dev/specs/` e combine-a com o humano. Correções pequenas podem ir direto para o código.
+2. Escreva testes que exercitam repositórios git reais por meio da fixture `World`. Verifique o estado do repositório (HEAD, arquivos, refs), não as chamadas internas. Mocks só são aceitáveis na fronteira do ssh.
+3. Implemente.
+4. Rode `uv run task format` e depois `uv run task ci`. A tarefa não está pronta enquanto `ci` falhar. O CI roda o mesmo comando.
+5. Adicione uma entrada em `CHANGELOG.md`, sob `Unreleased`, para mudanças visíveis ao usuário. Atualize `README.md` ou `docs/` se o comportamento mudou.
+6. Remova os itens concluídos de `BACKLOG.md` ou `ROADMAP.md`. Apague as especificações e issues totalmente implementadas; o changelog e o histórico do git guardam o registro.
+
+Se você encontrar um bug fora da tarefa atual, adicione-o ao `BACKLOG.md` (se for pequeno) ou a `dev/issues/` (se precisar de investigação). Não o corrija em silêncio.
+
+## Comandos
+
+| Comando                 | Ação                                    |
 | :---------------------- | :-------------------------------------- |
-| `uv sync`               | Install dependencies.                   |
-| `uv run task test`      | Run tests.                              |
-| `uv run task format`    | Format and auto-fix with ruff.          |
-| `uv run task lint`      | ruff format check, ruff lint, mypy.     |
-| `uv run task ci`        | Lint and tests, as run by CI.           |
-| `uv run gitpair plan`   | Try the CLI against your own config.    |
+| `uv sync`               | Instala as dependências.                |
+| `uv run task test`      | Roda os testes.                         |
+| `uv run task format`    | Formata e corrige automaticamente com ruff. |
+| `uv run task lint`      | Verificação de formatação com ruff, lint com ruff e mypy. |
+| `uv run task ci`        | Lint e testes, como o CI roda.          |
+| `uv run gitpair plan`   | Testa a CLI com a sua própria configuração. |
 
-Real ssh is not covered by the test suite. When you change `hosts.py` or the
-git URLs, test against a real second machine or ask the human to do it.
+A suíte de testes não cobre ssh real. Ao mudar `hosts.py` ou as URLs do git, teste contra uma segunda máquina real ou peça ao humano para fazer isso.
