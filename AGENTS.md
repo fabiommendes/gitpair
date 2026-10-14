@@ -10,9 +10,23 @@ Nível 2 (aplicativo público), conforme `~/git/tools/tooling-root/dev/adr/0002-
 
 - Em inglês: código, comentários, docstrings, mensagens da CLI e de erro,
   `README.md`, a documentação de usuário em `docs/`, `CHANGELOG.md`,
-  `CONTRIBUTING.md`, `ROADMAP.md`, `GLOSSARY.md` e mensagens de commit.
-- Em português (pt-BR): este arquivo, `BACKLOG.md`, tudo em `dev/`, as ADRs e
-  as issues.
+  `CONTRIBUTING.md`, `GLOSSARY.md` e mensagens de commit.
+- Em português (pt-BR): este arquivo, tudo em `dev/`, as ADRs e as issues.
+
+## Comandos
+
+Checagem: `uv run task ci`. Ela define "pronto": a tarefa não termina enquanto ela falhar. O CI roda o mesmo comando.
+
+| Comando                 | Ação                                    |
+| :---------------------- | :-------------------------------------- |
+| `uv sync`               | Instala as dependências.                |
+| `uv run task test`      | Roda os testes.                         |
+| `uv run task format`    | Formata e corrige automaticamente com ruff. |
+| `uv run task lint`      | Verificação de formatação com ruff, lint com ruff e mypy. |
+| `uv run task ci`        | Lint e testes, como o CI roda.          |
+| `uv run gitpair plan`   | Testa a CLI com a sua própria configuração. |
+
+A suíte de testes não cobre ssh real. Ao mudar `hosts.py` ou as URLs do git, teste contra uma segunda máquina real ou peça ao humano para fazer isso.
 
 ## Trabalhando com o humano
 
@@ -33,11 +47,8 @@ O texto voltado ao usuário (README, docs, mensagens da CLI, docstrings) fica em
 | `docs/`                      | Documentação de usuário mais longa: configuração e funcionamento interno. |
 | `examples/config.toml`       | Exemplo completo de configuração. Mantenha-o válido; os testes podem carregá-lo. |
 | `CHANGELOG.md`               | Mudanças visíveis ao usuário, no formato Keep a Changelog.                |
-| `ROADMAP.md`                 | Versões planejadas e o escopo de cada uma.                                |
-| `BACKLOG.md`                 | Ideias sem data, limitações conhecidas e problemas pequenos.              |
 | `GLOSSARY.md`                | Vocabulário do projeto. Use esses termos no código e nos docs.            |
-| `dev/specs/`                 | Especificações de funcionalidades, escritas antes de implementações não triviais. |
-| `dev/issues/`                | Bugs que precisam de mais que uma correção rápida. Apague-os depois de corrigidos. |
+| `dev/issues/`                | Todo o trabalho: bugs, funcionalidades (com a spec no corpo), tarefas e o backlog. Veja `dev/README.md`. |
 | `src/gitpair/config.py`      | Carrega e atualiza a configuração TOML compartilhada; detecta a máquina local e a remota. |
 | `src/gitpair/scanner.py`     | Encontra repositórios e informa o estado de cada um. Roda nas duas máquinas. |
 | `src/gitpair/hosts.py`       | `Host` executa comandos localmente; `RemoteHost` os envolve em ssh.       |
@@ -64,24 +75,20 @@ O texto voltado ao usuário (README, docs, mensagens da CLI, docstrings) fica em
 
 ## Fluxo de trabalho
 
-1. Em funcionalidades não triviais, escreva antes uma especificação em `dev/specs/` e combine-a com o humano. Correções pequenas podem ir direto para o código.
+1. Todo trabalho parte de uma issue em `dev/issues/`. Ao pegá-la, mude o status para `in_progress` e acrescente uma seção `## Plano` com checkboxes; marque cada item no commit que o fecha. Em funcionalidades não triviais, a spec vai no corpo da issue e é combinada com o humano antes do código.
 2. Escreva testes que exercitam repositórios git reais por meio da fixture `World`. Verifique o estado do repositório (HEAD, arquivos, refs), não as chamadas internas. Mocks só são aceitáveis na fronteira do ssh.
 3. Implemente.
-4. Rode `uv run task format` e depois `uv run task ci`. A tarefa não está pronta enquanto `ci` falhar. O CI roda o mesmo comando.
+4. Rode `uv run task format` e depois a checagem, `uv run task ci`.
 5. Adicione uma entrada em `CHANGELOG.md`, sob `Unreleased`, para mudanças visíveis ao usuário. Atualize `README.md` ou `docs/` se o comportamento mudou.
-6. Remova os itens concluídos de `BACKLOG.md` ou `ROADMAP.md`. Apague as especificações e issues totalmente implementadas; o changelog e o histórico do git guardam o registro.
+6. Feche a issue com `status: completed` e `closed: YYYY-MM-DD`. Não a apague. Cite-a nos commits com o trailer `Refs: dev/issues/<slug>.md`.
 
-Se você encontrar um bug fora da tarefa atual, adicione-o ao `BACKLOG.md` (se for pequeno) ou a `dev/issues/` (se precisar de investigação). Não o corrija em silêncio.
+Se você encontrar um bug fora da tarefa atual, crie uma issue em `dev/issues/` com `status: backlog`. Não o corrija em silêncio.
 
-## Comandos
+## Ordens permanentes
 
-| Comando                 | Ação                                    |
-| :---------------------- | :-------------------------------------- |
-| `uv sync`               | Instala as dependências.                |
-| `uv run task test`      | Roda os testes.                         |
-| `uv run task format`    | Formata e corrige automaticamente com ruff. |
-| `uv run task lint`      | Verificação de formatação com ruff, lint com ruff e mypy. |
-| `uv run task ci`        | Lint e testes, como o CI roda.          |
-| `uv run gitpair plan`   | Testa a CLI com a sua própria configuração. |
+Manutenções que um agente faz sem issue aprovada, desde que a checagem passe:
 
-A suíte de testes não cobre ssh real. Ao mudar `hosts.py` ou as URLs do git, teste contra uma segunda máquina real ou peça ao humano para fazer isso.
+- Atualizar dependências em `uv.lock` dentro das faixas do `pyproject.toml`.
+- Corrigir avisos do ruff e do mypy sem mudar comportamento.
+- Consertar um teste instável sem enfraquecer o que ele verifica.
+- Corrigir links quebrados e erros de digitação na documentação.

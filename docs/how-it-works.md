@@ -78,3 +78,24 @@ and the remote fast-forwards from it.
 
 They do not show up in `git branch` and are never pushed to other remotes.
 Remove them with `git for-each-ref --format='%(refname)' refs/gitpair | xargs -n1 git update-ref -d`.
+
+## Known limitations
+
+- Only the checked out branch is compared. Other branches are ignored unless
+  the repository is cloned.
+- When each host has a different branch checked out, gitpair reports the
+  repository and skips it.
+- When the config file on the remote host differs from the local one, gitpair
+  does not overwrite it. Copy it by hand.
+- More than two hosts are synced only in pairs (`--remote`). There is no mode
+  that syncs every host in one run.
+- `clone-there` needs git 2.28 or newer on the remote host
+  (`git init --initial-branch`).
+- Ignored files: deletions are not propagated, and conflicts are decided only
+  by mtime.
+- The ignored files of a repository are copied only from the second run after
+  it is cloned on a host.
+- `autopush` pushes only from the local host. If only the remote host has
+  credentials for origin, it fails.
+- There is no lock against two runs at the same time on both hosts. Their
+  force-pushes to `refs/gitpair/incoming/<branch>` can collide.
