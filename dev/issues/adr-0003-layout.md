@@ -14,7 +14,7 @@ O ADR 0003 do tooling-root unifica o layout dos repositórios. O gitpair diverge
 assim:
 
 - `dev/specs/`: tirar. A spec vai no corpo da issue. Apagar `TEMPLATE.md`.
-- `BACKLOG.md`: cada item vira uma issue em `dev/issues/` com `status: completed`.
+- `BACKLOG.md`: cada item vira uma issue em `dev/issues/` com `status: backlog`.
   As limitações conhecidas que o usuário precisa saber vão para `docs/`.
 - `ROADMAP.md`: cada item vira uma issue com `milestone`. O arquivo volta a
   existir quando o `r2 roadmap` gerar o roadmap.
