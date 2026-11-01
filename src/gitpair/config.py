@@ -133,6 +133,7 @@ class Config:
             raise ConfigError(f"choose the remote with --remote ({names})")
         return local, others[0]
 
+    # r2: adr/0007
     def local_host(self) -> HostConfig:
         """The host whose ``hostname`` matches this machine.
 

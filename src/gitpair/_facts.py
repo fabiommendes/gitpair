@@ -18,9 +18,11 @@ from gitpair._model import RepoState
 from gitpair.config import Config, RepoOptions
 from gitpair.hosts import CommandError, Host
 
+# r2: adr/0008
 ORIGIN_TIMEOUT = 120
 
 
+# r2: adr/0006
 def gather(
     config: Config,
     local: Host,
@@ -50,6 +52,7 @@ def gather(
     return facts
 
 
+# r2: adr/0008
 def origin_env(host: Host, path: str) -> dict[str, str]:
     """Environment for git commands that reach ``origin``.
 

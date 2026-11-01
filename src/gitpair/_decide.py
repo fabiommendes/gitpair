@@ -19,6 +19,7 @@ from gitpair._model import NO_CHANGE, Action, Extra, FilesPolicy, Item, RepoStat
 from gitpair.config import Config
 
 
+# r2: adr/0006
 def decide(
     config: Config, facts: list[RepoFacts], local_name: str, remote_name: str
 ) -> list[Item]:
@@ -39,6 +40,7 @@ def decide(
     ]
 
 
+# r2: adr/0004
 def compare_files(
     here: dict[str, list[int]], there: dict[str, list[int]], /
 ) -> tuple[list[str], list[str], list[str], list[str]]:
@@ -189,6 +191,7 @@ def _decide_item(
     else:
         fields = _decide_one_sided(facts.local, facts.remote, local_name, remote_name)
 
+    # r2: adr/0005
     new = not config.is_tracked(facts.repo)
     if new:
         fields = _mark_new(fields)
