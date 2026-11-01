@@ -140,7 +140,7 @@ class Host:
         """
         return self.python("manifest", repo_path, *entries)
 
-    # r2: adr/0001
+    # r2: adr-0001
     def python(self, *args: str) -> dict:
         """Run ``scanner.py`` with ``args`` and parse its JSON output.
 

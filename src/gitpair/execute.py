@@ -23,7 +23,7 @@ from gitpair.plan import (
 
 __all__ = ["apply"]
 
-# r2: adr/0002
+# r2: adr-0002
 INCOMING = "refs/gitpair/incoming/{branch}"
 BACKUP = "refs/gitpair/backup/{branch}"
 
@@ -82,7 +82,7 @@ def apply(plan: Plan, item: Item) -> None:
 #
 
 
-# r2: adr/0003
+# r2: adr-0003
 def _copy_there(
     local: Host, remote: Host, lstate: RepoState, rstate: RepoState, files: list[str]
 ) -> None:
@@ -94,7 +94,7 @@ def _copy_there(
         remote.run_binary(["tar", "-x", "-f", "-", "-C", rstate.path], stdin=archive)
 
 
-# r2: adr/0003
+# r2: adr-0003
 def _copy_here(
     local: Host, remote: Host, lstate: RepoState, rstate: RepoState, files: list[str]
 ) -> None:
@@ -216,7 +216,7 @@ def _clone_there(local: Host, remote: Host, repo: str, lstate: RepoState) -> Non
         remote.git(path, "remote", "add", "origin", lstate.origin)
 
 
-# r2: adr/0002
+# r2: adr-0002
 def _send(local: Host, remote: Host, lstate: RepoState, rpath: str) -> str:
     """Push the local branch to a scratch ref on the peer and return the ref.
 

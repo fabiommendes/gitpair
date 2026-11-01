@@ -149,7 +149,7 @@ def _git_checked(path: str, *args: str) -> tuple[str | None, str | None]:
     return result.stdout.strip(), None
 
 
-# r2: adr/0001
+# r2: adr-0001
 if __name__ == "__main__":
     if sys.argv[1] == "manifest":
         json.dump(manifest(sys.argv[2], sys.argv[3:]), sys.stdout)
