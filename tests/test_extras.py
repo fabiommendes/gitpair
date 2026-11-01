@@ -40,6 +40,7 @@ def files_world(world: World) -> World:
     return world
 
 
+@pytest.mark.story("user: Copy gitignored files between machines")
 def test_ignored_files_are_copied_both_ways_newest_wins(files_world: World):
     here, there = files_world.here / "app", files_world.there / "app"
     write(here / "storage/a.txt", "a", 1000)
@@ -70,6 +71,7 @@ def test_ignored_files_are_copied_both_ways_newest_wins(files_world: World):
     assert files_world.plan().pending == []
 
 
+@pytest.mark.story("user: Copy gitignored files between machines")
 def test_conflicting_file_asks_and_is_not_copied_by_default(files_world: World):
     here, there = files_world.here / "app", files_world.there / "app"
     write(here / "storage/shared.txt", "old", 1000)

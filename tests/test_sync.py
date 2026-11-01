@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tomllib
 
+import pytest
 from conftest import World, commit, git
 
 from gitpair import session
@@ -28,6 +29,7 @@ def test_repos_with_same_head_are_in_sync(world: World):
     assert plan.items[0].in_sync
 
 
+@pytest.mark.story("user: Get the other machine's new commits")
 def test_local_behind_is_pulled_automatically(world: World):
     world.track.append("app")
     world.repo("app")
@@ -43,6 +45,7 @@ def test_local_behind_is_pulled_automatically(world: World):
     assert (world.here / "app/new.txt").exists()
 
 
+@pytest.mark.story("user: Send my new commits to the other machine")
 def test_local_ahead_is_pushed_into_checked_out_branch(world: World):
     world.track.append("app")
     world.repo("app")
@@ -59,6 +62,7 @@ def test_local_ahead_is_pushed_into_checked_out_branch(world: World):
     assert git(remote, "for-each-ref", "refs/gitpair/incoming") == ""
 
 
+@pytest.mark.story("user: Keep a dirty work tree safe")
 def test_dirty_work_tree_asks(world: World):
     world.track.append("app")
     world.repo("app")
@@ -93,6 +97,7 @@ def test_push_cleans_up_incoming_ref_when_remote_merge_fails(world: World):
     assert git(remote, "for-each-ref", "refs/gitpair/incoming") == ""
 
 
+@pytest.mark.story("user: Resolve diverged branches")
 def test_diverged_branches_ask_and_can_merge(world: World):
     world.track.append("app")
     world.repo("app")
@@ -113,6 +118,7 @@ def test_diverged_branches_ask_and_can_merge(world: World):
     assert (there / "a.txt").exists() and (there / "b.txt").exists()
 
 
+@pytest.mark.story("user: Resolve diverged branches")
 def test_take_remote_keeps_a_backup(world: World):
     world.track.append("app")
     world.repo("app")
@@ -127,6 +133,7 @@ def test_take_remote_keeps_a_backup(world: World):
     assert git(here, "rev-parse", "refs/gitpair/backup/main") == mine
 
 
+@pytest.mark.story("user: Resolve diverged branches")
 def test_take_local_resets_remote(world: World):
     world.track.append("app")
     world.repo("app")
@@ -152,6 +159,7 @@ def test_different_branches_are_reported_and_skipped(world: World):
     assert item.status == "on main at here, feature at there"
 
 
+@pytest.mark.story("user: Clone a repository missing on one machine")
 def test_tracked_repo_missing_on_remote_is_cloned_there(world: World):
     world.track.append("group/app")
     repo = world.here / "group/app"
@@ -171,6 +179,7 @@ def test_tracked_repo_missing_on_remote_is_cloned_there(world: World):
     assert git(clone, "remote", "get-url", "origin") == "git@example.com:me/app.git"
 
 
+@pytest.mark.story("user: Clone a repository missing on one machine")
 def test_tracked_repo_missing_locally_is_cloned_here(world: World):
     world.track.append("app")
     repo = world.there / "app"
@@ -187,6 +196,7 @@ def test_tracked_repo_missing_locally_is_cloned_here(world: World):
     assert git(clone, "remote") == ""
 
 
+@pytest.mark.story("user: Track or ignore a new repository")
 def test_new_repo_asks_and_is_tracked_after_sync(world: World):
     world.repo("app")
     commit(world.there / "app", "new.txt")
@@ -204,6 +214,7 @@ def test_new_repo_asks_and_is_tracked_after_sync(world: World):
         assert tomllib.loads(path.read_text())["repos"]["track"] == ["app"]
 
 
+@pytest.mark.story("user: Track or ignore a new repository")
 def test_new_repo_can_be_ignored(world: World):
     world.repo("app")
     plan = world.plan()

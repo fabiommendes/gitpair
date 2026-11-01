@@ -29,6 +29,7 @@ def config(tmp_path: Path) -> cfg.Config:
     return cfg.load(path)
 
 
+@pytest.mark.story("user: Use one config file on both machines")
 def test_local_host_matches_short_hostname(config, monkeypatch):
     monkeypatch.setattr("socket.gethostname", lambda: "c3po-laptop.home")
     assert config.local_host().name == "c3po"
@@ -40,6 +41,7 @@ def test_unknown_machine_is_an_error(config, monkeypatch):
         config.local_host()
 
 
+@pytest.mark.story("user: Use one config file on both machines")
 def test_with_two_hosts_the_other_one_is_remote(tmp_path, monkeypatch):
     path = tmp_path / "config.toml"
     path.write_text(THREE_HOSTS.split("[hosts.bb8]")[0])

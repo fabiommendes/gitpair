@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 from conftest import World, commit
 
 from gitpair.plan import Action, FilesPolicy
@@ -15,6 +16,7 @@ def write(path: Path, content: str, mtime: int) -> None:
     os.utime(path, (mtime, mtime))
 
 
+@pytest.mark.story("user: Resolve diverged branches")
 async def test_user_answers_question_and_runs_plan(world: World):
     world.track.append("app")
     world.repo("app")
@@ -34,6 +36,7 @@ async def test_user_answers_question_and_runs_plan(world: World):
     assert app.return_value is True
 
 
+@pytest.mark.story("user: Copy gitignored files between machines")
 async def test_conflicting_files_are_asked_after_the_action(world: World):
     world.extra_config = '\n[repo.app]\nsync_ignored = ["storage"]\n'
     world.repo("app", gitignore="storage/\n")

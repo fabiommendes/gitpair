@@ -29,6 +29,7 @@ def cli_world(world: World, monkeypatch: pytest.MonkeyPatch) -> World:
     return world
 
 
+@pytest.mark.story("user: Preview a sync without changing anything")
 def test_plan_prints_table_and_changes_nothing(cli_world: World, capsys):
     cli_world.track.append("app")
     cli_world.repo("app")
@@ -44,6 +45,7 @@ def test_plan_prints_table_and_changes_nothing(cli_world: World, capsys):
     assert git(cli_world.there / "app", "rev-parse", "HEAD") != before
 
 
+@pytest.mark.story("user: Preview a sync without changing anything")
 def test_plan_plain_uses_no_unicode_icons(cli_world: World, capsys):
     cli_world.track.append("app")
     cli_world.repo("app")
@@ -60,6 +62,7 @@ def test_plan_plain_uses_no_unicode_icons(cli_world: World, capsys):
         assert icon not in out
 
 
+@pytest.mark.story("user: Sync unattended from a cron job")
 def test_sync_auto_applies_safe_actions_and_skips_questions(cli_world: World, capsys):
     cli_world.track.append("app")
     cli_world.repo("app")
@@ -102,6 +105,7 @@ def test_as_and_remote_are_accepted_before_or_after_the_subcommand(argv):
     assert args.remote == "there"
 
 
+@pytest.mark.story("user: Create the config file")
 def test_init_writes_template_once(tmp_path, capsys):
     path = tmp_path / "gitpair.toml"
     assert cli.main(["--config", str(path), "init"]) == 0
