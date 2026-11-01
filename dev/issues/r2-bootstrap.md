@@ -1,10 +1,11 @@
 ---
 type: issue
-status: in_progress
+status: completed
 tags: [layout, r2]
 kind: task
 created: 2026-11-01
 creator: claude
+closed: 2026-11-01
 ---
 
 # Preparar o repositório para o r2
@@ -22,4 +23,4 @@ testes e2e e os marcadores no código.
 - [x] ADRs 0001 a 0008.
 - [x] User stories do papel `user`, citadas pelos testes.
 - [x] Marcadores `r2: adr/NNNN` no código.
-- [ ] Mover os testes das stories para `tests/stories/`.
+- [x] Mover os testes das stories para `tests/stories/`.

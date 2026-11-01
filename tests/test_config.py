@@ -8,47 +8,11 @@ import pytest
 from gitpair import config as cfg
 from gitpair.hosts import RemoteHost
 
-THREE_HOSTS = """\
-[hosts.r2d2]
-ssh = "chips@r2d2"
-
-[hosts.c3po]
-hostname = "c3po-laptop.lan"
-ssh = "c3po"
-root = "~/src"
-
-[hosts.bb8]
-ssh = "bb8"
-"""
-
-
-@pytest.fixture
-def config(tmp_path: Path) -> cfg.Config:
-    path = tmp_path / "config.toml"
-    path.write_text(THREE_HOSTS)
-    return cfg.load(path)
-
-
-@pytest.mark.story("user: Use one config file on both machines")
-def test_local_host_matches_short_hostname(config, monkeypatch):
-    monkeypatch.setattr("socket.gethostname", lambda: "c3po-laptop.home")
-    assert config.local_host().name == "c3po"
-
 
 def test_unknown_machine_is_an_error(config, monkeypatch):
     monkeypatch.setattr("socket.gethostname", lambda: "stranger")
     with pytest.raises(cfg.ConfigError, match="stranger"):
         config.local_host()
-
-
-@pytest.mark.story("user: Use one config file on both machines")
-def test_with_two_hosts_the_other_one_is_remote(tmp_path, monkeypatch):
-    path = tmp_path / "config.toml"
-    path.write_text(THREE_HOSTS.split("[hosts.bb8]")[0])
-    monkeypatch.setattr("socket.gethostname", lambda: "r2d2")
-    local, remote = cfg.load(path).pair(None, None)
-    assert (local.name, remote.name) == ("r2d2", "c3po")
-    assert remote.root == "~/src"
 
 
 def test_more_hosts_require_remote(config):

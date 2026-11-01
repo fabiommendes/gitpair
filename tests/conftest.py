@@ -13,6 +13,7 @@ import pytest
 
 from gitpair import config as cfg
 from gitpair import plan as planning
+from gitpair import session
 from gitpair.hosts import Host
 
 CONFIG = """\
@@ -113,3 +114,46 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> World:
     here.mkdir()
     there.mkdir()
     return World(tmp_path, here, there, track=[])
+
+
+@pytest.fixture
+def cli_world(world: World, monkeypatch: pytest.MonkeyPatch) -> World:
+    def connect(config, me, peer):
+        return Host(config.hosts["here"]), FakeRemote(
+            config.hosts["there"], world.tmp / "home-there"
+        )
+
+    monkeypatch.setattr(session, "connect", connect)
+    monkeypatch.setenv("COLUMNS", "200")
+    return world
+
+
+GITIGNORE = "storage/\n.env\n"
+
+
+@pytest.fixture
+def files_world(world: World) -> World:
+    world.extra_config = '\n[repo.app]\nsync_ignored = ["storage", ".env"]\n'
+    world.repo("app", gitignore=GITIGNORE)
+    return world
+
+
+THREE_HOSTS = """\
+[hosts.r2d2]
+ssh = "chips@r2d2"
+
+[hosts.c3po]
+hostname = "c3po-laptop.lan"
+ssh = "c3po"
+root = "~/src"
+
+[hosts.bb8]
+ssh = "bb8"
+"""
+
+
+@pytest.fixture
+def config(tmp_path: Path) -> cfg.Config:
+    path = tmp_path / "config.toml"
+    path.write_text(THREE_HOSTS)
+    return cfg.load(path)

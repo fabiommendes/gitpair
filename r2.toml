@@ -13,6 +13,3 @@
 [commands.check]
 run = "uv run task ci"
 help = "Lint, types and tests, as CI runs them: the change is done when this passes."
-
-[config.stories]
-tests = ["tests"]

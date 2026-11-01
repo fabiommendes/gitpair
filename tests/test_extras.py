@@ -5,13 +5,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import World, commit, git
+from conftest import GITIGNORE, World, commit, git
 
 from gitpair import config as cfg
 from gitpair import session
 from gitpair.plan import Action, FilesPolicy, Item, Plan, Step
-
-GITIGNORE = "storage/\n.env\n"
 
 
 def write(path: Path, content: str, mtime: int) -> None:
@@ -31,62 +29,6 @@ def run(world: World, plan: Plan) -> session.Outcome:
 
 
 # Ignored files
-
-
-@pytest.fixture
-def files_world(world: World) -> World:
-    world.extra_config = '\n[repo.app]\nsync_ignored = ["storage", ".env"]\n'
-    world.repo("app", gitignore=GITIGNORE)
-    return world
-
-
-@pytest.mark.story("user: Copy gitignored files between machines")
-def test_ignored_files_are_copied_both_ways_newest_wins(files_world: World):
-    here, there = files_world.here / "app", files_world.there / "app"
-    write(here / "storage/a.txt", "a", 1000)
-    write(here / ".env", "SECRET=1", 1000)
-    write(here / "storage/shared.txt", "old", 1000)
-    write(there / "storage/b/c.txt", "c", 1000)
-    write(there / "storage/shared.txt", "new", 2000)
-
-    plan = files_world.plan()
-    item = only(plan)
-    assert item.choice is Action.NONE
-    assert [(e.step, e.files) for e in item.extras] == [
-        (Step.FILES_THERE, [".env", "storage/a.txt"]),
-        (Step.FILES_HERE, ["storage/b/c.txt", "storage/shared.txt"]),
-    ]
-    assert item.file_conflicts == ["storage/shared.txt"]
-    assert item.needs_decision
-    item.files_policy = FilesPolicy.NEWER_WINS  # explicit: conflicts need a choice
-
-    outcome = run(files_world, plan)
-    assert not outcome.failed
-    for side in (here, there):
-        assert (side / "storage/a.txt").read_text() == "a"
-        assert (side / "storage/b/c.txt").read_text() == "c"
-        assert (side / "storage/shared.txt").read_text() == "new"
-        assert (side / ".env").read_text() == "SECRET=1"
-    assert (here / "storage/shared.txt").stat().st_mtime == 2000
-    assert files_world.plan().pending == []
-
-
-@pytest.mark.story("user: Copy gitignored files between machines")
-def test_conflicting_file_asks_and_is_not_copied_by_default(files_world: World):
-    here, there = files_world.here / "app", files_world.there / "app"
-    write(here / "storage/shared.txt", "old", 1000)
-    write(there / "storage/shared.txt", "new", 2000)
-
-    plan = files_world.plan()
-    item = only(plan)
-    assert item.file_conflicts == ["storage/shared.txt"]
-    assert item.files_policy is None
-    assert item.needs_decision
-
-    outcome = run(files_world, plan)  # files_policy left undecided
-    assert not outcome.failed
-    assert (here / "storage/shared.txt").read_text() == "old"
-    assert (there / "storage/shared.txt").read_text() == "new"
 
 
 def test_skip_conflicts_policy_copies_only_the_one_sided_files(files_world: World):

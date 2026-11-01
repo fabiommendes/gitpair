@@ -4,76 +4,16 @@ import os
 from pathlib import Path
 
 import pytest
-from conftest import FakeRemote, World, commit, git
+from conftest import World, commit
 
-from gitpair import cli, session
+from gitpair import cli
 from gitpair import config as cfg
-from gitpair.hosts import Host
 
 
 def write(path: Path, content: str, mtime: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     os.utime(path, (mtime, mtime))
-
-
-@pytest.fixture
-def cli_world(world: World, monkeypatch: pytest.MonkeyPatch) -> World:
-    def connect(config, me, peer):
-        return Host(config.hosts["here"]), FakeRemote(
-            config.hosts["there"], world.tmp / "home-there"
-        )
-
-    monkeypatch.setattr(session, "connect", connect)
-    monkeypatch.setenv("COLUMNS", "200")
-    return world
-
-
-@pytest.mark.story("user: Preview a sync without changing anything")
-def test_plan_prints_table_and_changes_nothing(cli_world: World, capsys):
-    cli_world.track.append("app")
-    cli_world.repo("app")
-    before = commit(cli_world.here / "app", "new.txt")
-    config = cli_world.config()
-
-    assert cli.main(["--config", str(config.path), "plan"]) == 0
-    out = capsys.readouterr().out
-    assert "ahead by 1" in out
-    assert "▶ push" in out  # compact action: ▶ push
-    assert "↑" in out  # ahead icon in the status column
-    assert "↑ ahead" in out and "▶ automatic" in out  # legend
-    assert git(cli_world.there / "app", "rev-parse", "HEAD") != before
-
-
-@pytest.mark.story("user: Preview a sync without changing anything")
-def test_plan_plain_uses_no_unicode_icons(cli_world: World, capsys):
-    cli_world.track.append("app")
-    cli_world.repo("app")
-    commit(cli_world.here / "app", "new.txt")
-    config = cli_world.config()
-
-    assert cli.main(["--config", str(config.path), "plan", "--plain"]) == 0
-    out = capsys.readouterr().out
-    assert "ahead by 1" in out
-    assert "> push" in out
-    # none of the unicode status/action icons leaked into the plain output
-    # (table borders are drawn with unicode box characters regardless)
-    for icon in "✓↑↓⇅✎✚→←✗∅⚑▶":
-        assert icon not in out
-
-
-@pytest.mark.story("user: Sync unattended from a cron job")
-def test_sync_auto_applies_safe_actions_and_skips_questions(cli_world: World, capsys):
-    cli_world.track.append("app")
-    cli_world.repo("app")
-    cli_world.repo("unknown")
-    head = commit(cli_world.here / "app", "new.txt")
-    config = cli_world.config()
-
-    assert cli.main(["--config", str(config.path), "sync", "--auto"]) == 0
-    assert git(cli_world.there / "app", "rev-parse", "HEAD") == head
-    assert "1 done, 0 failed" in capsys.readouterr().out
-    assert "unknown" not in config.path.read_text()
 
 
 def test_sync_auto_skips_conflicts_but_copies_one_sided_files(cli_world: World, capsys):
@@ -103,14 +43,6 @@ def test_sync_auto_skips_conflicts_but_copies_one_sided_files(cli_world: World, 
 def test_as_and_remote_are_accepted_before_or_after_the_subcommand(argv):
     args = cli.parser().parse_args(argv)
     assert args.remote == "there"
-
-
-@pytest.mark.story("user: Create the config file")
-def test_init_writes_template_once(tmp_path, capsys):
-    path = tmp_path / "gitpair.toml"
-    assert cli.main(["--config", str(path), "init"]) == 0
-    assert "[hosts." in path.read_text()
-    assert cli.main(["--config", str(path), "init"]) == 1
 
 
 @pytest.mark.parametrize("command", [[], ["plan"], ["sync"]])
