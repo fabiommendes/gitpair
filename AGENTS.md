@@ -61,6 +61,7 @@ O texto voltado ao usuário (README, docs, mensagens da CLI, docstrings) fica em
 | `src/gitpair/tui.py`         | App Textual para revisar o plan e responder perguntas.                    |
 | `src/gitpair/cli.py`         | Ponto de entrada argparse e saída Rich.                                   |
 | `tests/conftest.py`          | Fixture `World`: duas máquinas falsas em um diretório temporário, sem ssh. |
+| `tests/stories/`             | Testes e2e das user stories de `docs/user-stories/`, citadas com `@pytest.mark.story`. |
 
 ## Regras fáceis de quebrar
 

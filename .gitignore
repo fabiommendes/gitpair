@@ -17,3 +17,6 @@ htmlcov/
 # Local tooling
 .base-ast/
 .base-ast-cache/
+
+# Claude Code local settings
+.claude/settings.local.json
