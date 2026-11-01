@@ -15,7 +15,7 @@ Nível 2 (aplicativo público), conforme `~/git/tools/tooling-root/dev/adr/0002-
 
 ## Comandos
 
-Checagem: `uv run task ci`. Ela define "pronto": a tarefa não termina enquanto ela falhar. O CI roda o mesmo comando.
+Checagem: `r2 check`, que roda `uv run task ci` (declarado em `r2.toml`). Ela define "pronto": a tarefa não termina enquanto ela falhar. O CI roda o mesmo comando. Até fechar `dev/issues/locale-dependent-test.md`, rode com `LC_ALL=C` numa máquina em outro idioma.
 
 | Comando                 | Ação                                    |
 | :---------------------- | :-------------------------------------- |
@@ -64,13 +64,13 @@ O texto voltado ao usuário (README, docs, mensagens da CLI, docstrings) fica em
 
 ## Regras fáceis de quebrar
 
-- `scanner.py` é enviado para `python3 -` na máquina remota. Use só a biblioteca padrão. Ele deve rodar no Python 3.7 e não importar nada de `gitpair`.
+- `scanner.py` é enviado para `python3 -` na máquina remota. Use só a biblioteca padrão. Ele deve rodar no Python 3.7 e não importar nada de `gitpair` (ADR 0001).
 - Todo comando que chega à máquina remota passa por `Host.run`, que escapa os argumentos com `shlex.join`. Nunca monte uma string de shell com nomes de repositórios, de branches ou caminhos. `Host.shell` só serve para scripts fixos montados a partir de valores da configuração, e esses valores também devem ser escapados.
-- A máquina remota nunca se conecta de volta à local. Para levar commits ao remoto, faça push para `refs/gitpair/incoming/<branch>` e depois um fast-forward no remoto.
-- Nenhuma ação pode perder commits ou trabalho não commitado, a menos que o usuário a tenha escolhido na UI. Isso vale também para arquivos ignorados: um arquivo em conflito (presente nas duas máquinas com mtime diferente) nunca é copiado sem uma escolha explícita de `files_policy`. Do mesmo modo, uma branch divergente nunca é resetada sem uma `Action` explícita. Ações destrutivas salvam o HEAD antigo em `refs/gitpair/backup/`. `--auto` só executa ações que `plan.py` marcou como automáticas e trata uma `files_policy` não decidida como `SKIP_CONFLICTS`.
-- Repositórios fora de `repos.track` sempre precisam de uma decisão, mesmo quando a sincronização seria automática.
-- Arquivos ignorados são copiados com `tar` via ssh, nunca com rsync, que não está instalado em todo lugar. Arquivos vindos da máquina remota são extraídos com o filtro `data` do `tarfile`; não o remova.
-- Comandos que falam com `origin` rodam com `ORIGIN_ENV` e `ORIGIN_TIMEOUT` (`plan.py`): sem prompts, mensagens em inglês, tempo limitado. Nunca faça force-push para o origin.
+- A máquina remota nunca se conecta de volta à local. Para levar commits ao remoto, faça push para `refs/gitpair/incoming/<branch>` e depois um fast-forward no remoto (ADR 0002).
+- Nenhuma ação pode perder commits ou trabalho não commitado, a menos que o usuário a tenha escolhido na UI. Isso vale também para arquivos ignorados: um arquivo em conflito (presente nas duas máquinas com mtime diferente) nunca é copiado sem uma escolha explícita de `files_policy` (ADR 0004). Do mesmo modo, uma branch divergente nunca é resetada sem uma `Action` explícita. Ações destrutivas salvam o HEAD antigo em `refs/gitpair/backup/`. `--auto` só executa ações que `plan.py` marcou como automáticas e trata uma `files_policy` não decidida como `SKIP_CONFLICTS`.
+- Repositórios fora de `repos.track` sempre precisam de uma decisão, mesmo quando a sincronização seria automática (ADR 0005).
+- Arquivos ignorados são copiados com `tar` via ssh, nunca com rsync, que não está instalado em todo lugar (ADR 0003). Arquivos vindos da máquina remota são extraídos com o filtro `data` do `tarfile`; não o remova.
+- Comandos que falam com `origin` rodam com `origin_env` e `ORIGIN_TIMEOUT` (`_facts.py`, ADR 0008): sem prompts, mensagens em inglês, tempo limitado. Nunca faça force-push para o origin.
 - Rich e Textual interpretam `[...]` como markup. Escape todo texto vindo do git ou do sistema de arquivos (`rich.markup.escape`).
 
 ## Fluxo de trabalho
