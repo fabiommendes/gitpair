@@ -1,6 +1,7 @@
 ---
-type: doc
+type: glossary
 status: active
+rejected: [Here, There]
 tags: [gitpair, glossary, vocabulary]
 relatedTo: [gitpair]
 ---
@@ -9,6 +10,8 @@ relatedTo: [gitpair]
 
 Keep entries short and in alphabetical order. Use these terms in code, docs and
 UI text. Ask the human before adding a new term defined in a conversation.
+
+---
 
 ## Action
 
@@ -22,17 +25,18 @@ An action gitpair runs without asking: a fast-forward between clean work trees
 on the same branch, or cloning a tracked repository that is missing on one
 host. The only actions `--auto` runs.
 
+## Autopush
+
+Config option, global or per repository: after syncing, push the branch to
+origin as an extra step.
+
+- related: Origin, Extra step
+- code: config.RepoOptions.autopush
+
 ## Backup ref
 
 `refs/gitpair/backup/<branch>`. The HEAD that a `take-local` or `take-remote`
 reset replaced.
-
-## Conflict
-
-An ignored file listed in `sync_ignored`, present on both hosts with a
-different `[size, mtime]`. Not copied until the item's `files_policy` is
-decided: "newer wins" or skip. Same mtime but a different size is a warning
-instead, never copied. `Item.file_conflicts` in code.
 
 ## Dirty
 
@@ -44,6 +48,16 @@ make a repository dirty.
 Work done for a repository after its action: copy ignored files to either
 host, or push to origin. `plan.Extra` and `plan.Step` in code. Skipped
 together with the repository.
+
+## File conflict
+
+An ignored file listed in `sync_ignored`, present on both hosts with a
+different `[size, mtime]`. Not copied until the item's files policy is
+decided: "newer wins" or skip. Same mtime but a different size is a warning
+instead, never copied. Not a merge conflict, which keeps its usual git meaning.
+
+- related: Ignored files, Files policy, Item
+- code: plan.Item.file_conflicts
 
 ## Files policy
 
@@ -61,6 +75,14 @@ local host and another is the remote host.
 
 Files and directories listed in a repository's `sync_ignored` option. git
 ignores them, gitpair copies them between hosts.
+
+## Ignored repository
+
+A repository listed in `repos.ignore`. gitpair never syncs it and never asks
+about it. Not the same as ignored files.
+
+- related: Tracked repository, New repository
+- code: config.Config.ignore
 
 ## Incoming ref
 
@@ -87,6 +109,23 @@ A repository found on a host that is in neither `repos.track` nor
 The action for a repository whose commits are already in sync but that has
 extra steps to run: no git changes, only the extras.
 
+## Origin
+
+The shared remote of a repository, such as GitHub. gitpair pushes to it after
+a sync when autopush is on, never with force: if origin has diverged, it
+reports that and does nothing.
+
+- related: Autopush, Extra step
+- code: plan.origin_state
+
+## Outcome
+
+What happened when a plan was applied: the items done, the items that failed
+with their errors, and a note on config changes.
+
+- related: Plan, Item
+- code: session.Outcome
+
 ## Peer ref
 
 `refs/gitpair/<host>/<branch>`. The remote branch as fetched into the local
@@ -105,6 +144,14 @@ that is not local.
 
 Directory that holds the repositories on a host (`root` in the config).
 Repositories are identified by their path relative to it.
+
+## Scan
+
+The state of every repository under the root of one host, reported by the
+scanner that runs on both hosts. The plan is built from the two scans.
+
+- related: Plan, Root, Host
+- code: gitpair.scanner
 
 ## Tracked repository
 
